@@ -1,0 +1,23 @@
+{
+  "name": "@masol/pipeline",
+  "version": "0.0.1",
+  "description": "gulp pipeline for prodvest scaffolding.",
+  "main": "index.js",
+  "scripts": {
+    "test": "tap test/**/*.test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.wware.org/pub/pipeline.git"
+  },
+  "keywords": [
+    "pipeline"
+  ],
+  "author": "lizhutang",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.1.0",
+    "fancy-log": "^2.0.0",
+    "gulp-changed": "^4.0.3"
+  }
+}
