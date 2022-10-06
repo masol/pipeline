@@ -10,12 +10,12 @@ const Names = {
   report: '报告'
 }
 
-function getEntry(opts){
-  const {task,series} = opts.gulpInst
+function getEntry(opts) {
+  const { task, series } = opts.gulpInst
 
   task(Names.status, require('./src/status')(opts))
   task(Names.report, require('./src/report')(opts))
-  
+
   const status = series(Names.status, Names.report)
   return {
     default: status,

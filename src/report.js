@@ -1,6 +1,6 @@
 
 let chalkInstance = null
-async function getChalk () {
+async function getChalk() {
   if (!chalkInstance) {
     chalkInstance = (await import('chalk')).default
   }
