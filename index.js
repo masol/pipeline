@@ -6,6 +6,7 @@
  */
 
 const Names = {
+  common: '目标环境准备',
   status: '状态获取',
   report: '报告'
 }
@@ -15,8 +16,9 @@ function getEntry(opts) {
 
   task(Names.status, require('./src/status')(opts))
   task(Names.report, require('./src/report')(opts))
+  task(Names.common, require('./src/common')(opts))
 
-  const status = series(Names.status, Names.report)
+  const status = series(Names.common, Names.status, Names.report)
   return {
     default: status,
     status
