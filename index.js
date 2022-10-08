@@ -6,12 +6,12 @@
  */
 
 const Names = {
-  common: '目标环境准备',
+  common: '加载环境定义',
   status: '状态获取',
   report: '报告'
 }
 
-function getEntry(opts) {
+function getEntry (opts) {
   const { task, series } = opts.gulpInst
 
   task(Names.status, require('./src/status')(opts))
