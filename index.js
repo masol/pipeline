@@ -6,7 +6,7 @@
  */
 
 const Names = {
-  common: '加载环境定义',
+  common: '加载集群定义',
   status: '状态获取',
   report: '报告'
 }

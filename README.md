@@ -8,14 +8,14 @@
 
 
 # 使用说明
-&emsp;&emsp;按照BO方法组建。pipeline是用来更新目标集群状态的工具。
+&emsp;&emsp;按照BO方法组建。pipeline是用来更新目标集群状态的工具。目前只支持小于50台的集群。采用salt masterless来部署环境。
 
 # 计算节点定义格式
 &emsp;&emsp;计算节点是一个集群目录`pvdev/nodes/{CLUSTER-NAME}`中的`nodes.json`文件，用于定义计算节点。其格式如下：
 
 ```javascript
 { //以美元符号开头的名称为系统名称。
-  $driver: 'auto', //auto,salt,ansible,fabric,docker : 安装工具。默认本地为docker,其它环境为salt.如果未指定salt服务，则目标环境为masterless salt来部署。
+  $driver: 'auto', //auto,salt 未来支持： ansible,fabric,docker : 安装工具。默认本地为docker,其它环境为salt.如果未指定salt服务，则目标环境为masterless salt来部署。
   $groupXXX: { //增加一组自动部署的节点。暂未支持。
     driver: 'vagrant',// vagrant,aliyun,tencent
     prefix: '', //名称前缀，后续索引节点可以用prefix${i}的格式，i为0基索引。不带i为全部自动节点。
@@ -33,13 +33,13 @@
 ```
 
 # 服务定义
-&emsp;&emsp;定义服务如何在集群中运行。位于文件`services.json`中。
+&emsp;&emsp;定义服务如何在集群中运行。位于文件`services.json`中。之所以将services独立出来，而不是放在node下定义。是为了未来引入自动配置(设计工作)。将服务分配于节点的细节隐藏起来，通过执行`gulp`中获取分配结果。
 
 ```javascript
 {
   name: { //name是固定的，目前只支持base,pg,redis,elastic,vault,keycloak,pinyan
     version: '', //可选，选定版本。
-    nodes: [], //指明运行的节点。字符串可以指定某一个，或者$auto来自动分配。也可以是一个数字，表明运行于几台服务器。
+    nodes: [], //指明运行的节点。空值表示全部自动分配，某个索引下空值表示自动分配任意节点。
     /*其它属性由服务自行规定。
     pg:(括号内为默认值)
     username:(app)

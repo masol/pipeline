@@ -68,7 +68,7 @@ module.exports = function (opts) {
       const srvName = defSrvs[i]
       if (!deployer.services[srvName] && !util.isDisabled(srvName)) {
         deployer.services[srvName] = {
-          nodes: '$atuo'
+          nodes: []
         }
       }
     }
@@ -76,11 +76,9 @@ module.exports = function (opts) {
       const srvName = knowSrvs[i]
       if (!deployer.services[srvName] && util.isEnabled(srvName)) {
         deployer.services[srvName] = {
-          nodes: '$atuo'
+          nodes: []
         }
       }
     }
-
-    console.log('deployer=', deployer)
   }
 }

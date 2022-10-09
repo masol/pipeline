@@ -12,6 +12,13 @@
 const DriverBase = require('./base')
 
 class Salt extends DriverBase {
+  async srvStatus (node) {
+    if (node.type === 'local') {
+      return super.srvStatus(node)
+    } else {
+      throw new Error('尚未实现')
+    }
+  }
 }
 
 module.exports = Salt
