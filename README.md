@@ -37,7 +37,7 @@
 
 ```javascript
 {
-  name: { //name是固定的，目前只支持base,pg,redis,elastic,vault,keycloak,webapi,webass
+  name: { //name是固定的，目前只支持base,pg,redis,elastic,vault,keycloak,$webapi,$webass || $webwx,$webmb,$webapp(桌面应用),$webtv
     version: '', //可选，选定版本。
     nodes: [], //指明运行的节点。空值表示全部自动分配，某个索引下空值表示自动分配任意节点。
     /*其它属性由服务自行规定。

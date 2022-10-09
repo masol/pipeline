@@ -10,19 +10,19 @@
 // File: base
 
 // Dev上需要忽略的服务。
-const IgDevSrvs = ['webapi', 'webass']
+const IgDevSrvs = ['$webapi', '$webass', '$webwx', '$webmb', '$webapp', '$webtv']
 
 function assignSrv (node, srvName, srv, _) {
-  // 本地环境下忽略webapi及webass服务。
+  // 本地环境下忽略$webapi及$webass服务。
   if (node.type === 'local' && IgDevSrvs.indexOf(srvName) >= 0) {
     return
   }
   // 不能将除webass外的服务分配到oss上。
-  if (node.type === 'oss' && srvName !== 'webass') {
+  if (node.type === 'oss' && srvName !== '$webass') {
     return
   }
   // 不能将webass分配到非oss节点上。
-  if (node.type !== 'oss' && srvName === 'webass') {
+  if (node.type !== 'oss' && srvName === '$webass') {
     return
   }
   node.srvs = node.srvs || {}
@@ -59,6 +59,19 @@ class DriverBase {
         assignSrv(nodes[name], srvName, srv, _)
       }
     }
+  }
+
+  /**
+   * 部署一个节点的全部依赖服务。$webXXX除外。
+   */
+  async deployBase (node, name) {
+  }
+
+  /**
+   * 部署一个节点需要编译的服务。$webXXX类服务。
+   * @param {Node} node
+   */
+  async deployComp (node, name) {
   }
 
   /**
