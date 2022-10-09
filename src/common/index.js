@@ -2,7 +2,7 @@
 const fs = require('fs').promises
 const path = require('path')
 
-const defSrvs = ['postgres', 'redis', 'elastic']
+const defSrvs = ['postgres', 'redis', 'elastic', 'webapi', 'webass']
 // 可部署的已知服务
 const knowSrvs = ['vault', 'keycloak']
 

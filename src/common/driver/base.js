@@ -9,6 +9,26 @@
 // Created On : 9 Oct 2022 By 李竺唐 of 北京飞鹿软件技术研究院
 // File: base
 
+// Dev上需要忽略的服务。
+const IgDevSrvs = ['webapi', 'webass']
+
+function assignSrv (node, srvName, srv, _) {
+  // 本地环境下忽略webapi及webass服务。
+  if (node.type === 'local' && IgDevSrvs.indexOf(srvName) >= 0) {
+    return
+  }
+  // 不能将除webass外的服务分配到oss上。
+  if (node.type === 'oss' && srvName !== 'webass') {
+    return
+  }
+  // 不能将webass分配到非oss节点上。
+  if (node.type !== 'oss' && srvName === 'webass') {
+    return
+  }
+  node.srvs = node.srvs || {}
+  node.srvs[srvName] = _.clone(srv)
+}
+
 class DriverBase {
   constructor (opts) {
     this.opts = opts
@@ -23,14 +43,12 @@ class DriverBase {
   async allocSrv (nodes, srvName, srv) {
     const { _ } = this.opts.soa
     const nodeCount = _.keys(nodes).length
-
     srv.nodes = srv.nodes || []
     // console.log('srv.nodes=', srv.nodes)
     if (srv.nodes.length === 0) { // 自动分配。
       if (nodeCount <= 5) { // 服务运行于全部节点。
         for (const name in nodes) {
-          nodes[name].srvs = nodes[name].srvs || {}
-          nodes[name].srvs[srvName] = srv
+          assignSrv(nodes[name], srvName, srv, _)
         }
       } else {
         // 尚未实现超过5个的服务分配。
@@ -38,8 +56,7 @@ class DriverBase {
       }
     } else {
       for (const name of srv.nodes) {
-        nodes[name].srvs = nodes[name].srvs || {}
-        nodes[name].srvs[srvName] = _.clone(srv)
+        assignSrv(nodes[name], srvName, srv, _)
       }
     }
   }
@@ -55,7 +72,6 @@ class DriverBase {
       const dockerPath = shelljs.which('docker')
       for (const srvName in node.srvs) {
         const srv = node.srvs[srvName]
-        // console.log('shelljs=', shelljs)
         if (!srv.status) {
           srv.status = { }
           const execResult = shelljs.exec(`"${dockerPath}" container inspect pv-${srvName}`, { silent: true })

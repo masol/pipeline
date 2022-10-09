@@ -15,13 +15,13 @@
 
 ```javascript
 { //以美元符号开头的名称为系统名称。
-  $driver: 'auto', //auto,salt 未来支持： ansible,fabric,docker : 安装工具。默认本地为docker,其它环境为salt.如果未指定salt服务，则目标环境为masterless salt来部署。
+  $driver: 'auto', //auto=masterless salt 未来支持： ansible,fabric,docker : 安装工具。默认本地为docker,其它环境为salt.如果未指定salt服务，则目标环境为masterless salt来部署。
   $groupXXX: { //增加一组自动部署的节点。暂未支持。
-    driver: 'vagrant',// vagrant,aliyun,tencent
+    driver: 'vagrant',// vagrant,aliyun,tencent,aws
     prefix: '', //名称前缀，后续索引节点可以用prefix${i}的格式，i为0基索引。不带i为全部自动节点。
   },
   name: { //名称允许服务索引节点。
-    type: 'string', //local,ssh,aliyun,tencent,aws
+    type: 'string', //local,ssh,oss
     ipv4: '', //给出ipv4地址。
     ipv6: '', //暂未实现。
     hop: [], //名称序列，指明登录所需的hop。
@@ -37,7 +37,7 @@
 
 ```javascript
 {
-  name: { //name是固定的，目前只支持base,pg,redis,elastic,vault,keycloak,pinyan
+  name: { //name是固定的，目前只支持base,pg,redis,elastic,vault,keycloak,webapi,webass
     version: '', //可选，选定版本。
     nodes: [], //指明运行的节点。空值表示全部自动分配，某个索引下空值表示自动分配任意节点。
     /*其它属性由服务自行规定。

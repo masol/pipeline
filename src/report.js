@@ -63,7 +63,7 @@ module.exports = function (opts) {
         操作系统: $info.os.platform,
         版本号: $info.os.release,
         总内存: sizer($info.mem.total),
-        未用内存: sizer($info.mem.free),
+        可用内存: sizer($info.mem.free),
         接口数: _.keys($info.net).length
       })
       const net = {
