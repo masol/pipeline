@@ -13,7 +13,7 @@ const baseUtil = require('./utils')
 const pty = require('node-pty')
 const fs = require('fs').promises
 
-async function resetPwd (dockerPath) {
+async function resetPwd (dockerPath, opts) {
   const chalkAnimation = (await import('chalk-animation')).default
   return new Promise((resolve, reject) => {
     const baseStr = '正在重置elasticsearch的登录密码，'
@@ -43,7 +43,7 @@ async function resetPwd (dockerPath) {
     dockerProc.onData((data) => {
       const str = data.toString('utf8')
       if (nextIsPwd) {
-        pwd = str
+        pwd = opts.soa.s.trim(str, [' ', '\r', '\n'])
       }
       // console.log('recieved data:', data.toString('utf8'))
       if (str.indexOf('Please confirm that you would like to continue') >= 0) {
@@ -101,8 +101,8 @@ module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
     const { shelljs } = opts.soa
     const dockerPath = baseUtil.getDockerBin(shelljs)
     const cfgutil = opts.config.util
-    const pwd = await resetPwd(dockerPath)
-    // console.log('pwd=', pwd)
+    const pwd = await resetPwd(dockerPath, opts)
+    // console.log(`pwd={{{${pwd}}}}`)
     await fs.writeFile(cfgutil.path('config', opts.args.target, 'elastic', 'passwd'), pwd)
 
     const elastiCA = cfgutil.path('config', opts.args.target, 'elastic', 'http_ca.crt')
