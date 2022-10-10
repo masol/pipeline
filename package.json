@@ -17,14 +17,17 @@
   "license": "MIT",
   "dependencies": {
     "chalk": "^5.1.0",
+    "chalk-animation": "^2.0.3",
+    "chalk-template": "^0.4.0",
     "fancy-log": "^2.0.0",
     "filesize": "^10.0.5",
     "gulp-changed": "^4.0.3",
+    "js-yaml": "^4.1.0",
+    "node-pty": "^0.10.1",
     "ssh2": "^1.11.0",
     "ssh2-sftp-client": "^9.0.4"
   },
   "devDependencies": {
-    "chalk-template": "^0.4.0",
     "eslint": "^8.0.1",
     "eslint-config-standard": "^17.0.0",
     "eslint-plugin-import": "^2.25.2",

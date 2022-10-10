@@ -8,6 +8,7 @@
 const Names = {
   common: '加载集群定义',
   status: '状态获取',
+  deploy: '部署',
   report: '报告'
 }
 
@@ -17,11 +18,14 @@ function getEntry (opts) {
   task(Names.status, require('./src/status')(opts))
   task(Names.report, require('./src/report')(opts))
   task(Names.common, require('./src/common')(opts))
+  task(Names.deploy, require('./src/deploy')(opts))
 
   const status = series(Names.common, Names.status, Names.report)
+  const deploy = series(Names.common, Names.status, Names.deploy)
   return {
     default: status,
-    status
+    status,
+    deploy
   }
 }
 
