@@ -5,6 +5,7 @@
 - [使用说明](#使用说明)
 - [计算节点定义格式](#计算节点定义格式)
 - [服务定义](#服务定义)
+- [手动测试](#手动测试)
 
 
 # 使用说明
@@ -27,6 +28,7 @@
     hop: [], //名称序列，指明登录所需的hop。
     username: '', // 用户名
     password: '', //(opt)密码
+    rootpwd: '', //如果提供的用户名不是root,需要提供切换进入root的密码。如果未提供，默认可以直接切换。
     cert: 'xxx.key' //(opt,但是和密码必须提供一个)支持证书登录。索引的文件位于secret目录中。
   }
 }
@@ -50,3 +52,8 @@
   }
 }
 ```
+
+# 手动测试
+&emsp;&emsp;使用[vagrantup](https://www.vagrantup.com/)来管理[virtualbox](https://www.virtualbox.org/)。以测试多节点。进入`test`目录对应的子目录下，执行`vagrant up`来启动对应的集群，然后测试pipeline,最后执行`vagrant destroy`来销毁。
+&emsp;&emsp;可以自行搜索[vagrant box](https://app.vagrantup.com/boxes/search)来替换镜像。修改现有test来构建新test。
+&emsp;&emsp;将对应子测试下的nodes目录拷贝到主项目的nodes下`XXX`子目录下。主项目下执行`gulp status|deploy`等pipeline指令来测试。
