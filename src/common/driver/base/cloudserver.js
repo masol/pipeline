@@ -39,7 +39,7 @@ module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
   if (await exist(config)) {
     volumes.push(`${config}:/usr/src/app/config.json`)
   }
-  compose.services.postgresql = {
+  compose.services.cloudserver = {
     image: `zenko/cloudserver:${version}`,
     container_name: 'pv-cloudserver',
     labels: { 'com.prodvest.project': 'pv-cloudserver' },

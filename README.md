@@ -49,6 +49,14 @@
     database:(app)
     port:(5432)
     */
+    /**cloudserver的定义(后方是默认值)
+     * accessKeyId: 'lifecycleKey1',
+     * secretAccessKey: 'lifecycleSecretKey1',
+     * endpoint: 'localhost:8000',
+     * region: 'us-east-1',
+     * sslEnabled: false,
+     * s3ForcePathStyle: true
+    * 
   }
 }
 ```

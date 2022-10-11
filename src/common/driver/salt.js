@@ -15,6 +15,8 @@ class Salt extends DriverBase {
   async srvStatus (node) {
     if (node.type === 'local') {
       return super.srvStatus(node)
+    } else if (node.type === 'oss') {
+      // 忽略
     } else {
       throw new Error('尚未实现')
     }

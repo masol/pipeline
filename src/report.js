@@ -54,29 +54,48 @@ module.exports = function (opts) {
     for (const name in opts.deployer.nodes) {
       const node = opts.deployer.nodes[name]
       const $info = node.$info
-      const family = $info.cpus.length > 0 ? $info.cpus[0].model : '未知'
-      baseReporter.push({
-        节点名称: name,
-        cpu型号: family,
-        cpu架构: $info.arch,
-        总线程数: $info.cpus.length,
-        操作系统: $info.os.platform,
-        版本号: $info.os.release,
-        总内存: sizer($info.mem.total),
-        可用内存: sizer($info.mem.free),
-        接口数: _.keys($info.net).length
-      })
-      const net = {
-        节点名称: name
-      }
-      const srv = {
-        节点名称: name
-      }
+      if (node.type === 'oss') {
+        baseReporter.push({
+          节点名称: name,
+          操作系统: 'OSS',
+          接口数: _.keys($info.net).length
+        })
+        let i = 0
+        const net = {
+          节点名称: name
+        }
+        for (const ifname in $info.net) {
+          net[`接口${i}`] = ifname
+          net[`接口${i}地址`] = $info.net[ifname]
+          i++
+        }
+        netReporter.push(net)
+      } else {
+        const family = $info.cpus.length > 0 ? $info.cpus[0].model : '未知'
+        baseReporter.push({
+          节点名称: name,
+          cpu型号: family,
+          cpu架构: $info.arch,
+          总线程数: $info.cpus.length,
+          操作系统: $info.os.platform,
+          版本号: $info.os.release,
+          总内存: sizer($info.mem.total),
+          可用内存: sizer($info.mem.free),
+          接口数: _.keys($info.net).length
+        })
+        const net = {
+          节点名称: name
+        }
+        const srv = {
+          节点名称: name
+        }
 
-      let i = 0
-      for (const ifname in $info.net) {
-        net[`接口${i}`] = ifname
-        net[`接口${i}地址`] = $info.net[ifname]
+        let i = 0
+        for (const ifname in $info.net) {
+          net[`接口${i}`] = ifname
+          net[`接口${i}地址`] = $info.net[ifname]
+          i++
+        }
         for (const srvName in node.srvs) {
           const srvInfo = node.srvs[srvName].status || {}
           // console.log('srvInfo=', srvInfo)
@@ -85,11 +104,9 @@ module.exports = function (opts) {
             canDeploy = true
           }
         }
-        i++
+        netReporter.push(net)
+        srvReporter.push(srv)
       }
-
-      netReporter.push(net)
-      srvReporter.push(srv)
     }
 
     logger(tpl`{green ~~~{yellow.bold 节点基础信息}~~~}`)

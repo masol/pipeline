@@ -134,7 +134,7 @@ class DriverBase {
   }
 
   /**
-   * 部署一个节点需要编译的服务。$webXXX类服务。
+   * 部署一个节点需要编译的服务。$webXXX类服务。本地忽略之。
    * @param {Node} node
    */
   async deployComp (node, name) {
@@ -215,6 +215,10 @@ class DriverBase {
             }
           }
         }
+      } else if (node.type === 'oss') {
+        $info.net = {}
+        $info.net.endpoint = []
+        $info.net.endpoint.push(node.srvs.cloudserver.endpoint || 'localhost:8000')
       } else {
         throw new Error('尚未实现获取over ssh get computer information')
       }

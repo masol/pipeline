@@ -2,6 +2,7 @@
 const fs = require('fs').promises
 const path = require('path')
 
+const CloudServer = 'cloudserver'
 const defSrvs = ['postgres', 'redis', 'elastic', '$webapi', '$webass']
 // 可部署的已知服务
 const knowSrvs = ['vault', 'keycloak']
@@ -48,6 +49,12 @@ module.exports = function (opts) {
     }
     deployer.driver = new DriverCls(opts)
 
+    const ossNode = _.find(deployer.nodes, (n) => n.type === 'oss')
+    if (!ossNode) {
+      // @TODO: 是否添加oss node?以方便后续部署。
+      // console.log('未发现ossNode,添加cloudserver服务依赖。')
+      defSrvs.push(CloudServer)
+    }
     // 尝试加载服务列表:
     const srvDefExists = await fs.access(path.join(targetPath, SrvFname), fs.constants.F_OK)
       .then(() => { return true })
@@ -77,6 +84,16 @@ module.exports = function (opts) {
       if (!deployer.services[srvName] && util.isEnabled(srvName)) {
         deployer.services[srvName] = {
           nodes: []
+        }
+      }
+    }
+    const csSrv = deployer.services[CloudServer]
+    if (csSrv && !ossNode) {
+      // 添加一个ossNode.
+      deployer.nodes.$oss = {
+        type: 'oss',
+        srvs: {
+          cloudserver: _.clone(csSrv)
         }
       }
     }
