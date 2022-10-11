@@ -14,7 +14,7 @@
     "pipeline"
   ],
   "author": "lizhutang",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "dependencies": {
     "chalk": "^5.1.0",
     "chalk-animation": "^2.0.3",
