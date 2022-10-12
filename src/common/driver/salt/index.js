@@ -10,23 +10,29 @@
 // File: salt
 
 const Local = require('../local')
+const Term = require('./term')
 
 class Salt extends Local {
   async srvStatus (node) {
-    if (node.type === 'ssh') {
-      throw new Error('sal srvStatus 尚未实现')
-    } else {
-      return super.srvStatus(node)
+    if (node.type !== 'ssh') {
+      return await super.srvStatus(node)
     }
+    throw new Error('sal srvStatus 尚未实现')
   }
 
   async info (node) {
+    if (node.type !== 'ssh') {
+      return await super.info(node)
+    }
     if (!node.$info) {
-      if (node === 'ssh') {
-        console.log('enter ssh node info!!')
-      } else {
-        await super.info(node)
-      }
+      node.$info = {}
+      // const $info = node.$info
+      const term = await Term.create(this.opts, node)
+      // console.log('term=', term)
+      // const shell = await term.shell()
+      const upTime = await term.exec('uptime')
+      console.log('upTime=', upTime)
+      await term.close()
     }
   }
 }
