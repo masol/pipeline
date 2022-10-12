@@ -7,7 +7,7 @@
   - [计算节点](#计算节点)
   - [服务定义](#服务定义)
   - [安全性说明](#安全性说明)
-- [手动测试](#手动测试)
+- [测试说明](#测试说明)
 
 
 # 使用说明
@@ -73,7 +73,9 @@
 ## 安全性说明
 &emsp;&emsp;定义文件中索引到的密码部分,可以使用`$vault:XXXX`格式。其中`XXXX`是key，索引`secret`目录下`secret.json`文件中的值。文件类的值，索引的也是相同目录。不要把生产环境的secret加入到git中。未来支持:vault可以采用vault类服务。
 
-# 手动测试
+# 测试说明
 &emsp;&emsp;使用[vagrantup](https://www.vagrantup.com/)来管理[virtualbox](https://www.virtualbox.org/)。以测试多节点。进入`test`目录对应的子目录下，执行`vagrant up`来启动对应的集群，然后测试pipeline,最后执行`vagrant destroy`来销毁。
+
 &emsp;&emsp;可以自行搜索[vagrant box](https://app.vagrantup.com/boxes/search)来替换镜像。修改现有test来构建新test。
+
 &emsp;&emsp;将对应子测试下的nodes目录拷贝到主项目的nodes下`XXX`子目录下。主项目下执行`gulp status|deploy`等pipeline指令来测试。
