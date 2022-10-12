@@ -54,8 +54,9 @@ module.exports = function (opts) {
       // run server compile task
     }
     tasks.length = 0
-    for (const item in compNodes) {
+    for (const idx in compNodes) {
       // 有依赖本地编译的额外部署。
+      const item = compNodes[idx]
       tasks.push(deployer.driver.deployComp(item.node, item.name))
     }
     await Promise.all(tasks)

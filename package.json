@@ -19,6 +19,7 @@
     "chalk": "^5.1.0",
     "chalk-animation": "^2.0.3",
     "chalk-template": "^0.4.0",
+    "cli-table3": "^0.6.3",
     "fancy-log": "^2.0.0",
     "filesize": "^10.0.5",
     "gulp-changed": "^4.0.3",
