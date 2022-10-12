@@ -35,14 +35,6 @@ async function getFSizer () {
   return fileSizeInst
 }
 
-// const chalkAnimation = null
-// async function getAnim () {
-//   if (!chalkAnimation) {
-//     chalkAnimation = (await import('chalk-animation')).default
-//   }
-//   return chalkAnimation
-// }
-
 const logger = require('fancy-log')
 // 下两句将使得自定义报告结果与默认gulp保持一致。
 const util = require('util')
@@ -109,7 +101,7 @@ module.exports = function (opts) {
         '可用内存',
         '网络'
       ],
-      colWidths: [12, 21, 6, 6, 10, 19, 12, 12, 6],
+      colWidths: [12, 21, 9, 6, 10, 19, 12, 12, 6],
       wordWrap: true
     })
     const netReporter = []
@@ -140,12 +132,11 @@ module.exports = function (opts) {
         }
         netReporter.push(net)
       } else {
-        const family = $info.cpus.length > 0 ? $info.cpus[0].model : '未知'
         baseReporter.push([
           name,
-          family,
+          $info.family,
           $info.arch,
-          $info.cpus.length,
+          $info.core,
           $info.os.platform,
           $info.os.release,
           sizer($info.mem.total),

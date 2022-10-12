@@ -159,7 +159,9 @@ class Local extends OSS {
       const $info = node.$info
 
       const os = require('os')
-      $info.cpus = os.cpus()
+      const cpus = os.cpus()
+      $info.family = cpus.length > 0 ? cpus[0].model : '未知'
+      $info.core = cpus.length
       $info.arch = process.arch
       $info.os = {
         platform: os.platform(),
