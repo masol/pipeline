@@ -36,7 +36,7 @@ async function genCompose (driver, srvs, origCompStr, postTask) {
   for (const srvName in srvs) {
     const srv = srvs[srvName]
     try {
-      const srvFunc = require(`./${srvName}`).deploy
+      const srvFunc = require(`./deploy/${srvName}`).deploy
       // 只有服务未就绪，或者原始compStr无值时才执行。
       if (!srv.ok || !origCompStr) {
         services.push(srvFunc(driver.opts, compose, srvName, srv, postTask))
