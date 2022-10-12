@@ -54,7 +54,6 @@ class Salt extends Local {
       // const shell = await term.shell()
       $info.os = {}
       $info.os.type = s.trim(await term.exec('uname -s'))
-      console.log('$info.os.type.toLowerCase()=', $info.os.type.toLowerCase())
       // console.log(fetcherImpl)
       // 如果对应type的fetcher不存在，直接抛出异常。
       await require(`./info/${$info.os.type.toLowerCase()}`).info(this, { node, term, s, getByte })
