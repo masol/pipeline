@@ -61,5 +61,6 @@ module.exports.create = async (envOpts, node) => {
     conf = hopConf
   }
   const conn = new SSH2Promise(conf)
-  return await conn.connect()
+  const ret = await conn.connect()
+  return ret
 }

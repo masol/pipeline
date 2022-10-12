@@ -20,6 +20,9 @@ class Base {
     this.opts = opts
   }
 
+  async finish (node) {
+  }
+
   assignSrv (node, srvName, srv, _) {
     // 本地环境下忽略$webapi及$webass服务。
     if (node.type === 'local' && IgDevSrvs.indexOf(srvName) >= 0) {

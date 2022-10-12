@@ -34,9 +34,26 @@ function getByte (s, line) {
 }
 
 class Salt extends Local {
+  async finish (node) {
+    if (node.$term) {
+      const term = node.$term
+      delete node.$term
+      await term.close()
+    }
+  }
+
   async srvStatus (node) {
     if (node.type !== 'ssh') {
       return await super.srvStatus(node)
+    }
+    const term = node.$term || await Term.create(this.opts, node)
+    node.$term = term
+    for (const srvName in node.srvs) {
+      const srv = node.srvs[srvName]
+      if (!srv.status) {
+        srv.status = {}
+        await require(`./info/${node.$info.os.type.toLowerCase()}`).srv(this, { srvName, srv, node, term })
+      }
     }
     // throw new Error('sal srvStatus 尚未实现')
   }
@@ -49,7 +66,9 @@ class Salt extends Local {
       const { s } = this.opts.soa
       node.$info = {}
       const $info = node.$info
-      const term = await Term.create(this.opts, node)
+      const term = node.$term || await Term.create(this.opts, node)
+      node.$term = term
+
       // console.log('term=', term)
       // const shell = await term.shell()
       $info.os = {}
@@ -57,7 +76,7 @@ class Salt extends Local {
       // console.log(fetcherImpl)
       // 如果对应type的fetcher不存在，直接抛出异常。
       await require(`./info/${$info.os.type.toLowerCase()}`).info(this, { node, term, s, getByte })
-      await term.close()
+      // await term.close()
     }
   }
 }

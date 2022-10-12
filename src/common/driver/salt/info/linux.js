@@ -60,3 +60,31 @@ module.exports.info = async function (driver, { node, term, s, getByte }) {
     }
   }
 }
+
+/**
+ *  只有不同发行版名称不同的，才需要加入map.例如apache2入口:
+ apache2: {
+  'centos': 'httpd',
+  'fedora': 'httpd'
+ }
+*/
+const srvNameMap = {}
+// 获取linux下的服务信息。
+module.exports.srv = async function (driver, { srvName, srv, node, term }) {
+  const { s } = driver.opts.soa
+  const commonName = s.startsWith(srvName, '$') ? s.strRight(srvName, '$') : srvName
+  const mapEntry = srvNameMap[commonName]
+  const issuer = s.trim(node.$info.os.platform).toLowerCase()
+  const usedName = mapEntry && mapEntry[issuer]
+    ? mapEntry[issuer]
+    : commonName
+  const status = await term.exec(`systemctl status ${usedName}`).catch(e => {
+    return false
+  })
+  // console.log(usedName, 'status=', status)
+  if (!status) {
+    srv.status.ok = false
+  } else {
+    srv.status.ok = true
+  }
+}
