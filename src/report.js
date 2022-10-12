@@ -94,7 +94,7 @@ module.exports = function (opts) {
     const tpl = await getTpl()
     const { _ } = opts.soa
 
-    logger(tpl`{green ======目标集群{red.bold ${opts.args.target}}共包含{red.bold ${_.keys(opts.deployer.nodes).length}}台计算机:{yellow.bold 状态报告}=====}`)
+    logger(tpl`{green ======目标集群{red.bold ${opts.args.target}}共包含{red.bold ${_.keys(opts.deployer.nodes).length}}个节点:{yellow.bold 状态报告}=====}`)
 
     let canDeploy = false
     // 开始构建table数据。
