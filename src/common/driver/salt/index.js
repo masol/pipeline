@@ -9,16 +9,24 @@
 // Created On : 9 Oct 2022 By 李竺唐 of SanPolo.Co.LTD
 // File: salt
 
-const DriverBase = require('./base')
+const Local = require('../local')
 
-class Salt extends DriverBase {
+class Salt extends Local {
   async srvStatus (node) {
-    if (node.type === 'local') {
-      return super.srvStatus(node)
-    } else if (node.type === 'oss') {
-      // 忽略
+    if (node.type === 'ssh') {
+      throw new Error('sal srvStatus 尚未实现')
     } else {
-      throw new Error('尚未实现')
+      return super.srvStatus(node)
+    }
+  }
+
+  async info (node) {
+    if (!node.$info) {
+      if (node === 'ssh') {
+        console.log('enter ssh node info!!')
+      } else {
+        await super.info(node)
+      }
     }
   }
 }
