@@ -145,4 +145,17 @@ module.exports.deployBase = async function (driver, { name, node, term }) {
     }
   }
   // 根据服务，创建STATE TREE。
+  const sftp = await term.pvftp()
+  // console.log('sftp=', sftp)
+  // cp2Local(/srv/salt, ensure('salt'))
+  // 读取local yml
+  // 创建配置。
+  // cp2Remote(localpath,'srv/salt)
+  // exec('salt-call apply state')
+  const stat = await sftp.lstat('/tmp/test').catch(e => {
+    console.log('error lstat=', e.code)
+  })
+  console.log('stat=', stat)
+  const dirs = await sftp.fastGet('/etc/salt/minion', '/tmp/test.txt').catch(e => [])
+  console.log('dirs=', dirs)
 }

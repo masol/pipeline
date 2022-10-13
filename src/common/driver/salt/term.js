@@ -44,6 +44,36 @@ async function getConf (envOpts, node) {
   return conf
 }
 
+async function ensurePath (sftp, path) {
+}
+
+async function cp2Local (sftp, src, target) {
+}
+
+async function cp2Remote (sftp, src, target) {
+}
+
+function pvftp (term, envOpts) {
+  let inst = null
+  return async function () {
+    if (!inst) {
+      inst = await term.sftp()
+      // 为inst添加几个便捷函数。
+      // 1. 递归创建目录。
+      inst.ensure = async (path) => {
+        return await ensurePath(inst, path)
+      }
+      inst.cp2Local = async (src, target) => {
+        return await cp2Local(inst, src, target)
+      }
+      inst.cp2Remote = async (src, target) => {
+        return await cp2Remote(inst, src, target)
+      }
+    }
+    return inst
+  }
+}
+
 module.exports.create = async (envOpts, node) => {
   const hop = node.hop || []
   let conf = await getConf(envOpts, node)
@@ -61,7 +91,8 @@ module.exports.create = async (envOpts, node) => {
     }
     conf = hopConf
   }
-  const conn = new SSH2Promise(conf)
-  const ret = await conn.connect()
-  return ret
+  const sshInst = new SSH2Promise(conf)
+  await sshInst.connect()
+  sshInst.pvftp = pvftp(sshInst)
+  return sshInst
 }

@@ -2,8 +2,13 @@
  * pipeline说明:
  * 编译: build - deploy - test
  * 监测: status
- * 部署: infras(only run if status not ok,except --force given) - deploy
+ * 部署: deploy
  */
+
+const os = require('os')
+const uniqueFilename = require('unique-filename')
+const fs = require('fs').promises
+const path = require('path')
 
 const Names = {
   common: '加载集群定义',
@@ -15,6 +20,19 @@ const Names = {
 
 function getEntry (opts) {
   const { task, series } = opts.gulpInst
+
+  opts.cacheDir = {
+    name: uniqueFilename(os.tmpdir(), 'pvpipeline'),
+    created: false,
+    ensure: async function (subPath = '') {
+      const fullpath = path.join(this.name, subPath)
+      return fs.access(fullpath, fs.constants.F_OK)
+        .then(() => true)
+        .catch(async (e) => {
+          return fs.mkdir(fullpath, { recursive: true })
+        })
+    }
+  }
 
   task(Names.status, require('./src/status')(opts))
   task(Names.report, require('./src/report')(opts))
