@@ -88,3 +88,61 @@ module.exports.srv = async function (driver, { srvName, srv, node, term }) {
     srv.status.ok = true
   }
 }
+
+/** 可以采用相同指令集维护的issue */
+const osMapper = {
+  centos: 'fedora'
+}
+function getIssue (node) {
+  const issue = node.$info.os.platform.toLowerCase()
+  return osMapper[issue] || issue
+}
+// linux下的deployBase
+module.exports.deployBase = async function (driver, { name, node, term }) {
+  const { s } = driver.opts.soa
+  const logfname = `~/install-${new Date().toJSON().slice(0, 10)}.log`
+  // console.log('logfname=', logfname)
+  if (driver.opts.args.mirror) {
+    // 检查并修改服务器的mirror设置。
+    await require(`./issue/${getIssue(node)}`).mirror(driver, { logfname, node, term, s })
+    // console.log('node=', node)
+  }
+  let saltCmd = s.trim(await term.exec('which salt-call').catch(e => ''))
+  if (!saltCmd) {
+    // 安装salt-minion,并且不启动salt服务。
+    const localBSFile = '~/bootstrap-salt.sh'
+    const mirrorURL = 'https://libs.wware.org/stacksalt/20221004/bootstrap_salt.sh'
+    const saltURL = driver.opts.args.mirror ? mirrorURL : 'https://bootstrap.saltstack.com'
+    await term.exec(`wget -O ${localBSFile} ${saltURL} 2>&1 | tee -a ${logfname}`).catch(e => false)
+    // @TODO: 官方未提供MD5校验码?
+    const chk = s.trim(await term.exec(`grep __ScriptVersion= ${localBSFile}`).catch(e => false))
+    // console.log('chk=', chk)
+    if (!chk) {
+      let hasErr = true
+      if (!this.opts.args.mirror) { // 切换进入mirror模式重试。
+        await term.exec(`wget -O ${localBSFile} ${mirrorURL}  2>&1 | tee -a ${logfname}`).catch(e => false)
+        if (s.trim(await term.exec(`grep __ScriptVersion= ${localBSFile}`).catch(e => ''))) {
+          hasErr = false
+        }
+      }
+      if (hasErr) {
+        throw new Error('无法下载stacksalt的启动脚本')
+      }
+    }
+    await term.exec(`sudo sh ${localBSFile} -X 2>&1 | tee -a ${logfname}`).catch(e => '')
+    saltCmd = s.trim(await term.exec('which salt-call').catch(e => ''))
+    if (!saltCmd) {
+      throw new Error(`节点${name}上,安装salt-minion失败，请查看${logfname}了解详情。`)
+    }
+  }
+
+  // 确保salt-minion为masterless模式。
+  const isLocal = s.trim(await term.exec('grep "file_client: local" /etc/salt/minion').catch(e => ''))
+  if (!isLocal) {
+    await term.exec('sudo sed -i "s/#file_client: remote/file_client: local/" /etc/salt/minion').catch(e => '')
+    if (!s.trim(await term.exec('grep "file_client: local" /etc/salt/minion').catch(e => ''))) {
+      throw new Error(`节点${name}上,无法设置salt-minion为masterless模式，请查看${logfname}了解详情。`)
+    }
+  }
+  // 根据服务，创建STATE TREE。
+}

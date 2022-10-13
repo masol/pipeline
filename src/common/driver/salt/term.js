@@ -22,13 +22,14 @@ async function getConf (envOpts, node) {
   const secretMap = JSON.parse(await fs.readFile(path.join(secretPath, 'secret.json'), 'utf8').catch(e => {
     return '{}'
   }))
-  const conf = {}
-  conf.host = node.ipv4 || node.ipv6 || node.domain
-  if (!conf.host) {
-    throw new Error('ssh节点必须指定ipv4,ipv6或domain中的一个。')
+  if (!node.host) {
+    throw new Error('ssh节点必须指定host。')
   }
-  conf.port = node.port || 22
-  conf.username = node.username || 'root'
+  const conf = {
+    host: node.host,
+    port: node.port || 22,
+    username: node.username || 'root'
+  }
   const passwd = (s.startsWith(node.password, $VaultPrefix)
     ? secretMap[s.strRight(node.password, ':')]
     : node.password)

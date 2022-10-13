@@ -19,8 +19,8 @@ module.exports = function (opts) {
       animation = chalkAnimation.rainbow(baseStr + '请稍候...')
     }
     await Promise.all(tasks)
-    if (hassh && animation) {
-      animation.stop()
+    if (animation) {
+      animation.replace('正在通过SSH获取服务状态,请稍候...')
     }
 
     for (const name in deployer.services) {
@@ -34,6 +34,17 @@ module.exports = function (opts) {
       )
     }
     await Promise.all(tasks)
+
+    if (animation) {
+      animation.replace('通过SSH获取状态完成。')
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          animation.stop()
+          resolve()
+        }, 500)
+      })
+    }
+
     // console.log('deployer.nodes=', deployer.nodes.local)
   }
 }

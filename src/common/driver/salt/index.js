@@ -42,6 +42,20 @@ class Salt extends Local {
     }
   }
 
+  async deployBase (node, name) {
+    if (node.type !== 'ssh') {
+      return await super.deployBase(node, name)
+    }
+    node.$term = node.$term || await Term.create(this.opts, node)
+    await require(`./os/${node.$info.os.type.toLowerCase()}`).deployBase(this, { name, node, term: node.$term })
+  }
+
+  async deployComp (node, name) {
+    if (node.type !== 'ssh') {
+      return await super.deployComp(node, name)
+    }
+  }
+
   async srvStatus (node) {
     if (node.type !== 'ssh') {
       return await super.srvStatus(node)
@@ -52,7 +66,7 @@ class Salt extends Local {
       const srv = node.srvs[srvName]
       if (!srv.status) {
         srv.status = {}
-        await require(`./info/${node.$info.os.type.toLowerCase()}`).srv(this, { srvName, srv, node, term })
+        await require(`./os/${node.$info.os.type.toLowerCase()}`).srv(this, { srvName, srv, node, term })
       }
     }
     // throw new Error('sal srvStatus 尚未实现')
@@ -75,7 +89,7 @@ class Salt extends Local {
       $info.os.type = s.trim(await term.exec('uname -s'))
       // console.log(fetcherImpl)
       // 如果对应type的fetcher不存在，直接抛出异常。
-      await require(`./info/${$info.os.type.toLowerCase()}`).info(this, { node, term, s, getByte })
+      await require(`./os/${$info.os.type.toLowerCase()}`).info(this, { node, term, s, getByte })
       // await term.close()
     }
   }

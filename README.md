@@ -29,9 +29,7 @@
   },
   name: { //名称允许服务索引节点。可用配置参考[ssh2-promise](https://github.com/sanketbajoria/ssh2-promise)的配置。
     type: 'string', //local,ssh,oss
-    ipv4: '', //给出ipv4地址。
-    ipv6: '', //暂未实现。
-    domain: '', //暂未实现。
+    ip: '', //给出ipv4或v6地址。
     port: 22, //默认22
     hop: [], //名称序列，指明登录所需的hop。
     username: '', // 用户名
