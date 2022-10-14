@@ -12,6 +12,7 @@
 const fs = require('fs').promises
 const path = require('path')
 const SSH2Promise = require('ssh2-promise')
+const sftpUtil = require('./sftp')
 
 const $VaultPrefix = '$vault:'
 
@@ -44,15 +45,6 @@ async function getConf (envOpts, node) {
   return conf
 }
 
-async function ensurePath (sftp, path) {
-}
-
-async function cp2Local (sftp, src, target) {
-}
-
-async function cp2Remote (sftp, src, target) {
-}
-
 function pvftp (term, envOpts) {
   let inst = null
   return async function () {
@@ -61,13 +53,13 @@ function pvftp (term, envOpts) {
       // 为inst添加几个便捷函数。
       // 1. 递归创建目录。
       inst.ensure = async (path) => {
-        return await ensurePath(inst, path)
+        return await sftpUtil.ensurePath(inst, path)
       }
       inst.cp2Local = async (src, target) => {
-        return await cp2Local(inst, src, target)
+        await sftpUtil.cp2Local(inst, src, target, envOpts)
       }
       inst.cp2Remote = async (src, target) => {
-        return await cp2Remote(inst, src, target)
+        return await sftpUtil.cp2Remote(inst, src, target, envOpts)
       }
     }
     return inst
@@ -93,6 +85,6 @@ module.exports.create = async (envOpts, node) => {
   }
   const sshInst = new SSH2Promise(conf)
   await sshInst.connect()
-  sshInst.pvftp = pvftp(sshInst)
+  sshInst.pvftp = pvftp(sshInst, envOpts)
   return sshInst
 }

@@ -146,16 +146,22 @@ module.exports.deployBase = async function (driver, { name, node, term }) {
   }
   // 根据服务，创建STATE TREE。
   const sftp = await term.pvftp()
-  // console.log('sftp=', sftp)
-  // cp2Local(/srv/salt, ensure('salt'))
+
+  // const statInfo = await sftp.ensure('/srv/salt')
+  // console.log('statInfo=', statInfo)
+
+  const localBase = await driver.opts.tmp.ensure(name, 'salt')
+  // console.log('localBase=', localBase)
+  // 忽略拷贝到本地的错误。会导致意外的覆盖。
+  await sftp.cp2Local('/srv/salt', localBase).catch(e => false)
   // 读取local yml
   // 创建配置。
   // cp2Remote(localpath,'srv/salt)
   // exec('salt-call apply state')
-  const stat = await sftp.lstat('/tmp/test').catch(e => {
-    console.log('error lstat=', e.code)
-  })
-  console.log('stat=', stat)
-  const dirs = await sftp.fastGet('/etc/salt/minion', '/tmp/test.txt').catch(e => [])
-  console.log('dirs=', dirs)
+  // const stat = await sftp.lstat('/tmp/test').catch(e => {
+  //   console.log('error lstat=', e.code)
+  // })
+  // console.log('stat=', stat)
+  // const dirs = await sftp.fastGet('/etc/salt/minion', '/tmp/test.txt').catch(e => [])
+  // console.log('dirs=', dirs)
 }

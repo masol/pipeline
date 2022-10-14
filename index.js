@@ -21,16 +21,34 @@ const Names = {
 function getEntry (opts) {
   const { task, series } = opts.gulpInst
 
-  opts.cacheDir = {
+  opts.tmp = {
     name: uniqueFilename(os.tmpdir(), 'pvpipeline'),
     created: false,
-    ensure: async function (subPath = '') {
-      const fullpath = path.join(this.name, subPath)
-      return fs.access(fullpath, fs.constants.F_OK)
+    ensure: async function () {
+      const args = [this.name]
+      // const { _ } = opts.soa
+      for (let i = 0; i < arguments.length; i++) {
+        const arg = arguments[i]
+        args.push(arg)
+        // if (_.isArray(arg)) {
+        // }
+      }
+      const fullpath = path.join.apply(path, args)
+      await fs.access(fullpath, fs.constants.F_OK)
         .then(() => true)
         .catch(async (e) => {
           return fs.mkdir(fullpath, { recursive: true })
         })
+      return fullpath
+    },
+    clean: async function () {
+      // 清空临时目录。在finish中调用，防止其中保存有secret信息。
+      const name = this.name
+      await fs.access(name, fs.constants.F_OK)
+        .then(() => {
+          return fs.rm(name, { recursive: true, force: true })
+        })
+        .catch((e) => true)
     }
   }
 

@@ -17,6 +17,7 @@ module.exports = function (opts) {
       const node = deployer.nodes[name]
       tasks.push(deployer.driver.finish(node))
     }
+    tasks.push(opts.tmp.clean())
     await Promise.all(tasks)
   }
 }
