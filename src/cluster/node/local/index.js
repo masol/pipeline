@@ -11,7 +11,7 @@
 
 const fs = require('fs').promises
 const yaml = require('js-yaml')
-const baseUtil = require('./utils')
+const dockerUtil = require('./utils')
 const Base = require('../base')
 const ComposeFile = 'docker-compose.yml'
 
@@ -68,7 +68,7 @@ class Local extends Base {
     // 在genCompose调用时，暴露的postTask数组。会在容器启动后执行，例如elastic,用来重置密码，获取证书等动作。
     const postTask = []
     if (!origCompStr || isForce) {
-      const content = await genCompose(this, node.srvs, origCompStr, postTask)
+      const content = await genCompose(this, this.node.srvs, origCompStr, postTask)
       // console.log(content)
       await fs.writeFile(composePathFile, content)
     }
@@ -103,18 +103,14 @@ class Local extends Base {
   }
 
   /**
-   * 读取某节点的service状态，结果放入srv对象中。
-   * @param {Node} node
+   * 读取本节点的service状态，结果放入srv对象的status中。
    */
-  async srvStatus (node) {
-    if (node.type !== 'local') {
-      return await super.srvStatus(node)
-    }
+  fetchSrv () {
     // 开始获取status。
-    const { shelljs, _ } = this.opts.soa
-    const dockerPath = baseUtil.getDockerBin(shelljs)
-    for (const srvName in node.srvs) {
-      const srv = node.srvs[srvName]
+    const that = this
+    const { shelljs, _ } = that.$env.soa
+    const dockerPath = dockerUtil.getDockerBin(shelljs)
+    _.forEach(that._srvs, (srv, srvName) => {
       if (!srv.status) {
         srv.status = {}
         const execResult = shelljs.exec(`"${dockerPath}" container inspect pv-${srvName}`, { silent: true })
@@ -139,21 +135,17 @@ class Local extends Base {
         }
         // console.log(execResult)
       }
-    }
+    })
   }
 
   /**
    *
-   * @param {ComputerNode} node
    */
-  async info (node) {
-    if (node.type !== 'local') {
-      return await super.info(node)
-    }
-
-    if (!node.$info) {
-      node.$info = {}
-      const $info = node.$info
+  fetch () {
+    const that = this
+    if (!that.info) {
+      that.$info = {}
+      const $info = that.$info
 
       const os = require('os')
       const cpus = os.cpus()
@@ -185,6 +177,7 @@ class Local extends Base {
         }
       }
     }
+    return that.$info
   }
 }
 

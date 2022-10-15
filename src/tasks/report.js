@@ -86,7 +86,9 @@ module.exports = function (opts) {
     const tpl = await getTpl()
     const { _ } = opts.soa
 
-    logger(tpl`{green ======目标集群{red.bold ${opts.args.target}}共包含{red.bold ${_.keys(opts.deployer.nodes).length}}个节点:{yellow.bold 状态报告}=====}`)
+    const { cluster } = opts
+
+    logger(tpl`{green ======目标集群{red.bold ${opts.args.target}}共包含{red.bold ${_.keys(cluster.nodes).length}}个节点:{yellow.bold 状态报告}=====}`)
 
     let canDeploy = false
     // 开始构建table数据。
@@ -106,68 +108,43 @@ module.exports = function (opts) {
     })
     const netReporter = []
     const srvReporter = []
-    for (const name in opts.deployer.nodes) {
-      const node = opts.deployer.nodes[name]
+    _.forEach(cluster.nodes, (node, name) => {
       const $info = node.$info
-      if (node.type === 'oss') {
-        baseReporter.push([
-          name,
-          defPlaceHolder,
-          defPlaceHolder,
-          defPlaceHolder,
-          'OSS',
-          defPlaceHolder,
-          defPlaceHolder,
-          defPlaceHolder,
-          _.keys($info.net).length
-        ])
-        let i = 0
-        const net = {
-          节点名称: name
-        }
-        for (const ifname in $info.net) {
-          net[`网卡${i}`] = ifname
-          net[`网卡${i}地址`] = $info.net[ifname]
-          i++
-        }
-        netReporter.push(net)
-      } else {
-        baseReporter.push([
-          name,
-          $info.family,
-          $info.arch,
-          $info.core,
-          $info.os.platform,
-          $info.os.release,
-          sizer($info.mem.total),
-          sizer($info.mem.free),
-          _.keys($info.net).length
-        ])
-        const net = {
-          节点名称: name
-        }
-        const srv = {
-          节点名称: name
-        }
 
-        let i = 0
-        for (const ifname in $info.net) {
-          net[`网卡${i}`] = ifname
-          net[`网卡${i}地址`] = $info.net[ifname]
-          i++
-        }
-        for (const srvName in node.srvs) {
-          const srvInfo = node.srvs[srvName].status || {}
-          // console.log('srvInfo=', srvInfo)
-          srv[srvName] = srvInfo.ok ? chalk.green(srvInfo.ok) : chalk.red(srvInfo.ok)
-          if (!srvInfo.ok) {
-            canDeploy = true
-          }
-        }
-        netReporter.push(net)
-        srvReporter.push(srv)
+      baseReporter.push([
+        name,
+        $info.family,
+        $info.arch,
+        $info.core,
+        $info.os.platform,
+        $info.os.release,
+        sizer($info.mem.total),
+        sizer($info.mem.free),
+        _.keys($info.net).length
+      ])
+      const net = {
+        节点名称: name
       }
-    }
+      const srv = {
+        节点名称: name
+      }
+
+      let i = 0
+      for (const ifname in $info.net) {
+        net[`网卡${i}`] = ifname
+        net[`网卡${i}地址`] = $info.net[ifname]
+        i++
+      }
+      _.forEach(node._srvs, (innerSrv, srvName) => {
+        const srvInfo = innerSrv.status || {}
+        srv[srvName] = srvInfo.ok ? chalk.green(srvInfo.ok) : chalk.red(srvInfo.ok)
+        if (!srvInfo.ok) {
+          canDeploy = true
+        }
+      })
+      netReporter.push(net)
+      srvReporter.push(srv)
+    })
 
     logger(tpl`{green ~~~{yellow.bold 节点基础信息}~~~}`)
     console.log(baseReporter.toString())

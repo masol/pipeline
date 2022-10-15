@@ -11,13 +11,11 @@
 
 module.exports = function (opts) {
   return async function () {
-    const { deployer } = opts
-    const tasks = []
-    for (const name in deployer.nodes) {
-      const node = deployer.nodes[name]
-      tasks.push(deployer.driver.finish(node))
-    }
-    tasks.push(opts.tmp.clean())
+    const { cluster } = opts
+    const tasks = [
+      cluster.finish(),
+      opts.tmp.clean()
+    ]
     await Promise.all(tasks)
   }
 }

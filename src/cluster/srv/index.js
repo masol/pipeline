@@ -29,6 +29,11 @@ function alloc (cluster, name, srvDef) {
   if (IgnoreSrvs.indexOf(name) >= 0) { // 忽略忽略节点
     return
   }
+  if (name === '$webapi' && cluster.envs.args.target === 'dev') {
+    // 本地环境下，不部署$webapi.
+    return
+  }
+
   const nodes = cluster.nodes
   const nodeCount = _.keys(nodes).length
   if (name === CloudServer) {
