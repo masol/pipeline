@@ -19,8 +19,8 @@ async function exist (pathFile) {
 }
 
 module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
-  const version = srv.version || 'latest'
-  const port = srv.port || 8000
+  const version = srv.srvDef.version || 'latest'
+  const port = srv.srvDef.port || 8000
   const cfgutil = opts.config.util
   const s3base = cfgutil.path('config', opts.args.target, 'oss')
   const volumes = [

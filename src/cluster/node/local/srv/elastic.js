@@ -67,9 +67,9 @@ async function resetPwd (dockerPath, opts) {
 }
 
 module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
-  const version = srv.version || '8.4.3'
-  const port = srv.port || 9200
-  const manPort = srv.manport || 9300
+  const version = srv.srvDef.version || '8.4.3'
+  const port = srv.srvDef.port || 9200
+  const manPort = srv.srvDef.manport || 9300
   compose.services.elastic = {
     image: `elasticsearch:${version}`,
     container_name: 'pv-elastic',

@@ -6,23 +6,12 @@
 //  WIDE website: http://www.pinyan.tech/                                   //
 //  License : MIT LICENSE(https://opensource.org/licenses/MIT)              //
 /// //////////////////////////////////////////////////////////////////////////
-// Created On : 10 Oct 2022 By 李竺唐 of 北京飞鹿软件技术研究院
-// File: redis
+// Created On : 9 Oct 2022 By 李竺唐 of 北京飞鹿软件技术研究院
+// File: index
 
-module.exports.deploy = (opts, compose, srvName, srv, postTask) => {
-  const version = srv.srvDef.version || '7.0.4'
-  const port = srv.srvDef.port || 6379
-  compose.services.redis = {
-    image: `redis:${version}`,
-    container_name: 'pv-redis',
-    restart: 'always',
-    networks: ['prodvest'],
-    labels: { 'com.prodvest.project': 'pv-redis' },
-    ports: [`${port}:${port}`],
-    volumes: ['pv_redis_data:/data']
+module.exports = function (opts) {
+  return async function () {
+    const { cluster } = opts
+    return await cluster.deploy()
   }
-  compose.volumes.pv_redis_data = {
-    driver: 'local'
-  }
-  compose.networks.prodvest = compose.networks.prodvest || {}
 }

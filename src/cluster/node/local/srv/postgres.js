@@ -12,10 +12,10 @@
 const fs = require('fs').promises
 
 module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
-  const version = srv.version || '14.5.0'
-  const username = srv.username || 'app'
-  const database = srv.database || 'app'
-  const port = srv.port || 5432
+  const version = srv.srvDef.version || '14.5.0'
+  const username = srv.srvDef.username || 'app'
+  const database = srv.srvDef.database || 'app'
+  const port = srv.srvDef.port || 5432
   const cfgutil = opts.config.util
   const pgpwd = cfgutil.path('config', opts.args.target, 'postgres', 'app.passwd')
   const passwd = await fs.readFile(pgpwd, 'utf-8').catch(async e => {

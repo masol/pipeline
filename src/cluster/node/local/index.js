@@ -16,59 +16,60 @@ const Base = require('../base')
 const ComposeFile = 'docker-compose.yml'
 
 /**
+ * 驱动本地获取信息及使用Docker维护服务的Driver。
+ */
+class Local extends Base {
+/**
  * local的私有成员，用于构建Docker Compose文件。
- * @param {*} opts
- * @param {*} srvs
  * @param {*} origCompStr
  * @param {*} postTask
  * @returns
  */
-async function genCompose (driver, srvs, origCompStr, postTask) {
-  const services = []
-  const compose = origCompStr
-    ? yaml.load(origCompStr, 'utf8')
-    : {
-        version: '3.9',
-        services: {},
-        volumes: {},
-        networks: {}
-      }
-  for (const srvName in srvs) {
-    const srv = srvs[srvName]
-    try {
-      const srvFunc = require(`./srv/${srvName}`).deploy
-      // 只有服务未就绪，或者原始compStr无值时才执行。
-      if (!srv.ok || !origCompStr) {
-        services.push(srvFunc(driver.opts, compose, srvName, srv, postTask))
-      } else {
-        // console.log('ignore srv:', srvName)
-      }
-    } catch (e) {
-      throw new Error(`请求了未支持的本地服务:${srvName}`)
-    }
-  }
-  await Promise.all(services)
-  return yaml.dump(compose, { sortKeys: false })
-}
+  async #genCompose (origCompStr, postTask) {
+    const that = this
+    const { _ } = that.$env.soa
+    const isForce = that.$env.args.force
 
-/**
- * 驱动本地获取信息及使用Docker维护服务的Driver。
- */
-class Local extends Base {
+    const services = []
+    const compose = origCompStr
+      ? yaml.load(origCompStr, 'utf8')
+      : {
+          version: '3.9',
+          services: {},
+          volumes: {},
+          networks: {}
+        }
+
+    _.forEach(that._srvs, (srv, srvName) => {
+      try {
+        const srvFunc = require(`./srv/${srvName}`).deploy
+        // 只有服务未就绪，或者原始compStr无值时才执行。
+        if (isForce || !srv.ok || !origCompStr) {
+          services.push(srvFunc(that.$env, compose, srvName, srv, postTask))
+        }
+      } catch (e) {
+        throw new Error(`请求了未支持的本地服务:${srvName}`)
+      }
+    })
+    await Promise.all(services)
+    return yaml.dump(compose, { sortKeys: false })
+  }
+
   /**
    * 部署一个节点的全部依赖服务。$webXXX除外。
    */
   async deployEnv () {
-    const isForce = this.opts.args.force
-    const { shelljs } = this.opts.soa
-    const util = this.opts.config.util
+    const that = this
+    const isForce = that.$env.args.force
+    const { shelljs } = that.$env.soa
+    const util = that.$env.config.util
     const composePathFile = util.path('config', 'dev', ComposeFile)
     const origCompStr = await fs.readFile(composePathFile, 'utf-8')
       .catch((e) => { return false })
     // 在genCompose调用时，暴露的postTask数组。会在容器启动后执行，例如elastic,用来重置密码，获取证书等动作。
     const postTask = []
     if (!origCompStr || isForce) {
-      const content = await genCompose(this, this.node.srvs, origCompStr, postTask)
+      const content = await that.#genCompose(origCompStr, postTask)
       // console.log(content)
       await fs.writeFile(composePathFile, content)
     }

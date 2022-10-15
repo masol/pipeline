@@ -12,6 +12,15 @@
 const SrvFactory = require('./srv')
 const NodeFactory = require('./node')
 
+// const CompSrvs = {
+//   $webass: 'WebUI编译',
+//   $webapi: '服务器编译',
+//   $webmb: '手机版编译',
+//   $webwx: '小程序编译',
+//   $webapp: '应用程序编译',
+//   $webtv: 'TV应用编译'
+// }
+
 class Cluster {
   #nodes
   #srvDef
@@ -136,6 +145,13 @@ class Cluster {
   }
 
   async finish () {
+    const that = this
+    const { _, $ } = that.envs.soa
+
+    const limit = parseInt(that.envs.args.concurrency) || 5
+    await $.mapLimit(_.values(that.nodes), limit, (node) => {
+      return node.finish()
+    })
   }
 
   async fetch () {
@@ -146,10 +162,11 @@ class Cluster {
     }
     const { _, $ } = that.envs.soa
     const tasks = []
-    _.forEach(that.#nodes, (v, k) => {
-      const task = v.fetch()
-      if ($.isPromise(task)) {
-        tasks.push(task)
+    _.forEach(that.#nodes, async (node, k) => {
+      if (node.bSSH) {
+        tasks.push(node)
+      } else {
+        await node.fetch()
       }
     })
     let animation
@@ -158,20 +175,28 @@ class Cluster {
       const baseStr = '正在获取服务器信息(默认超时20秒)，'
       animation = chalkAnimation.rainbow(baseStr + '请稍候...')
     }
-    await Promise.all(tasks)
+
+    const limit = parseInt(that.envs.args.concurrency) || 5
+    await $.mapLimit(tasks, limit, (node) => {
+      return node.fetch()
+    })
 
     if (animation) {
       animation.replace('正在获取服务器的服务状态,请稍候...')
     }
     that.initSrvs()
+
     tasks.length = 0
-    _.forEach(that.#nodes, (v, k) => {
-      const task = v.fetchSrv()
-      if ($.isPromise(task)) {
-        tasks.push(task)
+    _.forEach(that.#nodes, async (node, k) => {
+      if (node.bSSH) {
+        tasks.push(node)
+      } else {
+        await node.fetchSrv()
       }
     })
-    await Promise.all(tasks)
+    await $.mapLimit(tasks, limit, (node) => {
+      return node.fetchSrv()
+    })
 
     if (animation) {
       animation.replace('获取服务器信息及服务状态完成。')
@@ -182,7 +207,99 @@ class Cluster {
         }, 500)
       })
     }
+    that.#feched = true
     // console.log('deployer.nodes=', deployer.nodes.local)
+  }
+
+  async #compile (taskMaps) {
+    if (taskMaps.$webass) {
+      // run local assets compile task
+    }
+    if (taskMaps.$webapi) {
+      // run local server compile task
+    }
+  }
+
+  // 根据cluster的定义，$ossDef,$tvdef等信息来获取本地编译任务。
+  #getCompileTask (taskMaps) {
+    const that = this
+    if (that.#ossDef) {
+      taskMaps.$webass = true
+    }
+    // 添加手机版、pc版、tv版等信息。
+    // if (!isDev && that.#ossDef) {
+    // }
+  }
+
+  async deploy () {
+    const that = this
+    const { _, $ } = that.envs.soa
+    const isDev = that.envs.args.target === 'dev'
+
+    // 首先查找是否需要本地编译webapi。$webass,$webtv等其它服务，通过检查配置项来查看，不属于节点。
+    const needComp = {}
+    // const { task, series } = opts.gulpInst
+
+    // 以$开头的为需要本地编译的服务。
+    const compSrvs = {}
+    // 有需要本地部署的服务，在本地编译任务结束后，需要重新调用compNodes的deployApp.
+    const compNodes = []
+
+    // 保存了需要执行任务的节点。
+    const tasks = []
+    _.forEach(that.#nodes, async (node) => {
+      // 本地环境不执行本地编译?
+      if (!isDev && node.getCompSrvs(compSrvs)) {
+        // 本节点需要本地编译，加入到compNodes.
+        compNodes.push(node)
+      }
+      if (node.bSSH) {
+        tasks.push(node)
+      } else {
+        await node.deployEnv()
+      }
+    })
+
+    if (!isDev) {
+      // 本地环境下不执行编译任务。
+      that.getCompileTask(compSrvs)
+    }
+
+    let animation
+    if (tasks.length > 0) {
+      const chalkAnimation = (await import('chalk-animation')).default
+      const baseStr = '正在部署环境(日志保存在每节点的~/install-日期.log中)，'
+      animation = chalkAnimation.rainbow(baseStr + '请稍候...')
+    }
+
+    const limit = parseInt(that.envs.args.concurrency) || 5
+    await $.mapLimit(tasks, limit, (node) => {
+      return node.deployEnv()
+    })
+
+    if (!_.isEmpty(needComp)) {
+      if (animation) {
+        animation.replace('正在编译本地资源,请稍侯...')
+      }
+      await that.#compile(needComp)
+    }
+
+    if (animation) {
+      animation.replace('正在部署$web相关服务,请稍侯...')
+    }
+    await $.mapLimit(compNodes, limit, (node) => {
+      return node.deployApp()
+    })
+
+    if (animation) {
+      animation.replace('部署完成.')
+      return new Promise((resolve, reject) => {
+        setTimeout(() => {
+          animation.stop()
+          resolve()
+        }, 500)
+      })
+    }
   }
 }
 

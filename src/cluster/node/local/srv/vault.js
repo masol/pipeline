@@ -10,8 +10,8 @@
 // File: vault
 
 module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
-  const version = srv.version || '1.11.4'
-  const port = srv.port || 8200
+  const version = srv.srvDef.version || '1.11.4'
+  const port = srv.srvDef.port || 8200
   compose.services.vault = {
     image: `vault:${version}`,
     container_name: 'pv-vault',

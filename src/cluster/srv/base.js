@@ -12,7 +12,7 @@
 class Base {
   #node
   constructor (name, srvDef, node) {
-    this.srvDef = srvDef
+    this.srvDef = srvDef || {}
     this.name = name
     this.#node = node
   }
