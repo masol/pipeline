@@ -18,25 +18,50 @@
 # 定义文件
 
 ## 计算节点
-&emsp;&emsp;计算节点是一个集群目录`pvdev/nodes/{CLUSTER-NAME}`中的`nodes.json`文件，用于定义计算节点。其格式如下：
+&emsp;&emsp;计算节点由集群目录`pvdev/nodes/{CLUSTER-NAME}`中的`manual.json`及`auto.json`文件合并定义。两者格式相同，auto是自动版本，而definition为手动版本,其格式如下：
 
 ```javascript
 { //以美元符号开头的名称为系统名称。
-  $driver: 'auto', //auto=masterless salt 未来支持： ansible,fabric,docker : 安装工具。默认本地为docker,其它环境为salt.如果未指定salt服务，则目标环境为masterless salt来部署。
   $groupXXX: { //增加一组自动部署的节点。暂未支持。
     driver: 'vagrant',// vagrant,aliyun,tencent,aws
     prefix: '', //名称前缀，后续索引节点可以用prefix${i}的格式，i为0基索引。不带i为全部自动节点。
   },
-  name: { //名称允许服务索引节点。可用配置参考[ssh2-promise](https://github.com/sanketbajoria/ssh2-promise)的配置。
-    type: 'string', //local,ssh,oss
-    ip: '', //给出ipv4或v6地址。
+  $oss: { //如果未指定$oss节点，也没有明确指定false。则会在节点上安装cloudserver。并添加$oss伪计算节点。
+  },
+  name: { //名称允许服务索引节点。可用配置参考[ssh2-promise](https://github.com/sanketbajoria/ssh2-promise)的配置。不能以`_`开头。
+    type: 'string', //local,ssh: 指示如何连接到此节点。
+    host: '', //给出ipv4或v6地址或domain。
     port: 22, //默认22
     hop: [], //名称序列，指明登录所需的hop。
+    services: [], //值为字符串或对象。对象为一个service定义,值为$srvs中的一个服务定义。空值表示自动分配。
     username: '', // 用户名
     readyTimeout: 20000, //建立链接的超时设置。默认20s。
     password: '', //(opt)密码
     rootpwd: '', //如果提供的用户名不是root,需要提供切换进入root的密码。如果未提供，默认可以直接切换。
     key: 'xxx.key' //(opt,但是和密码必须提供一个)支持证书登录。索引的文件位于secret目录中。
+  },
+  //这里的services是多个节点共享的service定义。了未来会引入自动配置(设计工作),并写回定义文件。
+  $srvs: { 
+    name: { //name是固定的，目前只支持base,pg,redis,elastic,vault,keycloak,$webapi。$webass(只有在oss不存在时，部署为$webapi的静态资源)。$webwx,$webmb,$webapp(桌面应用),$webtv等资源不属于节点，而是部署为外部服务(类似oss)。
+      name: '', //可选，如果在node中直接定义，需要给出名称。如果与外部名称冲突，这一属性拥有高优先级。
+      version: '', //可选，选定版本。
+      /*其它属性由服务自行规定。
+      pg:(括号内为默认值)
+      username:(app)
+      password:(crypto,save to config/postgres/app.passwd)
+      database:(app)
+      port:(5432)
+      */
+      /**cloudserver的定义(后方是默认值)
+       * accessKeyId: 'lifecycleKey1',
+       * secretAccessKey: 'lifecycleSecretKey1',
+       * endpoint: 'localhost:8000',
+       * region: 'us-east-1',
+       * sslEnabled: false,
+       * s3ForcePathStyle: true
+      * 
+      **/
+    }
   }
 }
 ```
@@ -47,23 +72,6 @@
 ```javascript
 {
   name: { //name是固定的，目前只支持base,pg,redis,elastic,vault,keycloak,$webapi,$webass || $webwx,$webmb,$webapp(桌面应用),$webtv
-    version: '', //可选，选定版本。
-    nodes: [], //指明运行的节点。空值表示全部自动分配，某个索引下空值表示自动分配任意节点。
-    /*其它属性由服务自行规定。
-    pg:(括号内为默认值)
-    username:(app)
-    password:(crypto,save to config/postgres/app.passwd)
-    database:(app)
-    port:(5432)
-    */
-    /**cloudserver的定义(后方是默认值)
-     * accessKeyId: 'lifecycleKey1',
-     * secretAccessKey: 'lifecycleSecretKey1',
-     * endpoint: 'localhost:8000',
-     * region: 'us-east-1',
-     * sslEnabled: false,
-     * s3ForcePathStyle: true
-    * 
   }
 }
 ```

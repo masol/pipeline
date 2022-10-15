@@ -12,7 +12,7 @@
 const fs = require('fs').promises
 const yaml = require('js-yaml')
 const baseUtil = require('./utils')
-const OSS = require('../oss')
+const Base = require('../base')
 const ComposeFile = 'docker-compose.yml'
 
 /**
@@ -54,14 +54,11 @@ async function genCompose (driver, srvs, origCompStr, postTask) {
 /**
  * 驱动本地获取信息及使用Docker维护服务的Driver。
  */
-class Local extends OSS {
+class Local extends Base {
   /**
    * 部署一个节点的全部依赖服务。$webXXX除外。
    */
-  async deployBase (node, name) {
-    if (node.type !== 'local') {
-      return super.deployBase(node, name)
-    }
+  async deployEnv () {
     const isForce = this.opts.args.force
     const { shelljs } = this.opts.soa
     const util = this.opts.config.util

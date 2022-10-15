@@ -52,11 +52,11 @@ function getEntry (opts) {
     }
   }
 
-  task(Names.status, require('./src/status')(opts))
-  task(Names.report, require('./src/report')(opts))
-  task(Names.common, require('./src/common')(opts))
-  task(Names.deploy, require('./src/deploy')(opts))
-  task(Names.finish, require('./src/finish')(opts))
+  task(Names.status, require('./src/tasks/status')(opts))
+  task(Names.report, require('./src/tasks/report')(opts))
+  task(Names.common, require('./src/tasks/common')(opts))
+  task(Names.deploy, require('./src/tasks/deploy')(opts))
+  task(Names.finish, require('./src/tasks/finish')(opts))
 
   const status = series(Names.common, Names.status, Names.report, Names.finish)
   const deploy = series(Names.common, Names.status, Names.deploy, Names.finish)

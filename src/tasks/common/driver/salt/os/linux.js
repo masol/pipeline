@@ -9,6 +9,10 @@
 // Created On : 12 Oct 2022 By 李竺唐 of 北京飞鹿软件技术研究院
 // File: linux
 
+const yaml = require('js-yaml')
+const fs = require('fs').promises
+const path = require('path')
+
 /// 获取Linux下的系统信息。
 module.exports.info = async function (driver, { node, term, s, getByte }) {
   const $info = node.$info
@@ -155,6 +159,34 @@ module.exports.deployBase = async function (driver, { name, node, term }) {
   // 忽略拷贝到本地的错误。会导致意外的覆盖。
   await sftp.cp2Local('/srv/salt', localBase).catch(e => false)
   // 读取local yml
+  const origCompStr = await fs.readFile(path.join(localBase, 'top.sls'), 'utf-8').catch((e) => '')
+  const compose = origCompStr
+    ? yaml.load(origCompStr, 'utf8')
+    : {
+        base: {
+          '*': []
+        }
+      }
+
+  const srvTasks = []
+  const postTasks = []
+  for (const srvName in node.srvs) {
+    const srv = node.srvs[srvName]
+    try {
+      const srvFunc = require(`../srv/${srvName}`).deploy
+      // 只有服务未就绪，或者原始compStr无值时才执行。
+      if (!srv.ok || !origCompStr) {
+        srvTasks.push(srvFunc(driver.opts, { localBase, compose, srvName, srv, postTasks }))
+      } else {
+        // console.log('ignore srv:', srvName)
+      }
+    } catch (e) {
+      throw new Error(`请求了未支持的本地服务:${srvName}`)
+    }
+  }
+
+  console.log('compose=', compose)
+  console.log('new compose=', yaml.dump(compose, { sortKeys: false }))
   // 创建配置。
   // cp2Remote(localpath,'srv/salt)
   // exec('salt-call apply state')

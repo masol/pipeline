@@ -9,8 +9,8 @@
 // Created On : 9 Oct 2022 By 李竺唐 of SanPolo.Co.LTD
 // File: salt
 
-const Local = require('../local')
-const Term = require('./term')
+const Base = require('../base')
+const Term = require('../../../tasks/common/driver/salt/term')
 
 /** 获取linux cat /proc/meminfo某行的值。结果为bytes. */
 
@@ -33,11 +33,11 @@ function getByte (s, line) {
   return num
 }
 
-class Salt extends Local {
-  async finish (node) {
-    if (node.$term) {
-      const term = node.$term
-      delete node.$term
+class SSH extends Base {
+  async finish () {
+    if (this.$term) {
+      const term = this.$term
+      delete this.$term
       await term.close()
     }
   }
@@ -95,4 +95,4 @@ class Salt extends Local {
   }
 }
 
-module.exports = Salt
+module.exports = SSH
