@@ -23,13 +23,27 @@ class Base {
   constructor (name, nodeDef, cluster) {
     this.#name = name
     this.#cluster = cluster
-    this.#nodeDef = nodeDef
-    console.log('nodeDef=', nodeDef)
+    this.#nodeDef = nodeDef || {}
     this._srvs = {}
+    // console.log('in Node Constructor nodeDef=', nodeDef)
   }
 
   srv (name) {
     return this._srvs[name]
+  }
+
+  get hop () {
+    return this.#nodeDef.hop
+  }
+
+  addSrv (srvName, srvDef) {
+    const { _ } = this.$env.soa
+    // console.log('add srv:', srvName, srvDef)
+    if (!_.find(this._srvs, (v, k) => k === srvName)) {
+      this._srvs[srvName] = SrvFactory.create(srvName, srvDef, this)
+      return true
+    }
+    return false
   }
 
   initSrvs () {
@@ -47,7 +61,7 @@ class Base {
       if (!_.isObject(def) || !name) {
         throw new Error(`节点${that.#name}中服务无名称或参数${value}`)
       }
-      that._srvs[name] = SrvFactory.create(name, def, that)
+      that.addSrv(name, def)
     })
   }
 

@@ -12,14 +12,6 @@
 const SrvFactory = require('./srv')
 const NodeFactory = require('./node')
 
-// Dev上需要忽略的服务。
-const IgDevSrvs = ['$webapi', '$webass', '$webwx', '$webmb', '$webapp', '$webtv']
-
-const CloudServer = 'cloudserver'
-const defSrvs = ['postgres', 'redis', 'elastic', '$webapi']
-// 可部署的已知服务
-const knowSrvs = ['vault', 'keycloak']
-
 class Cluster {
   #nodes
   #srvDef
@@ -33,52 +25,12 @@ class Cluster {
     this.#dirty = false
   }
 
+  get nodes () {
+    return this.#nodes
+  }
+
   srvDef (name) {
     return this.#srvDef[name]
-  }
-
-  assignSrv (node, srvName, srv, _) {
-    // 本地环境下忽略$webapi及$webass服务。
-    if (node.type === 'local' && IgDevSrvs.indexOf(srvName) >= 0) {
-      return
-    }
-    // 不能将除webass外的服务分配到oss上。
-    if (node.type === 'oss' && srvName !== '$webass') {
-      return
-    }
-    // 不能将webass分配到非oss节点上。
-    if (node.type !== 'oss' && srvName === '$webass') {
-      return
-    }
-    node.srvs = node.srvs || {}
-    node.srvs[srvName] = _.clone(srv)
-  }
-
-  /**
-   * 将一个srv分配给nodes.
-   * @param {Nodes} nodes
-   * @param {String} srvName
-   * @param {Service} srv
-   */
-  async #allocSrv (nodes, srvName, srv) {
-    const { _ } = this.envs.soa
-    const nodeCount = _.keys(nodes).length
-    srv.nodes = srv.nodes || []
-    // console.log('srv.nodes=', srv.nodes)
-    if (srv.nodes.length === 0) { // 自动分配。
-      if (nodeCount <= 5) { // 服务运行于全部节点。
-        for (const name in nodes) {
-          this.assignSrv(nodes[name], srvName, srv, _)
-        }
-      } else {
-        // 尚未实现超过5个的服务分配。
-        throw new Error('超过5节点的服务自动分配尚未支持。')
-      }
-    } else {
-      for (const name of srv.nodes) {
-        this.assignSrv(nodes[name], srvName, srv, _)
-      }
-    }
   }
 
   #initSrvs () {
@@ -87,21 +39,20 @@ class Cluster {
     const util = that.envs.config.util
     const ossNode = _.find(that.#nodes, (n) => n.type === 'oss')
     if (!ossNode) {
-      // @TODO: 是否添加oss node?以方便后续部署。
-      console.log('未发现ossNode,添加cloudserver服务依赖。')
-      defSrvs.push(CloudServer)
+      // console.log('未发现ossNode,添加cloudserver服务依赖。')
+      SrvFactory.consts.DefSrvs.push(SrvFactory.consts.CloudServer)
     }
 
     // 检查服务定义是否已经设置，如未设置，设置为default.
     // 如果服务未启用，但是节点定义中定义了此服务。安全忽略。
-    for (let i = 0; i < defSrvs.length; i++) {
-      const srvName = defSrvs[i]
+    for (let i = 0; i < SrvFactory.consts.DefSrvs.length; i++) {
+      const srvName = SrvFactory.consts.DefSrvs[i]
       if (!that.#srvDef[srvName] && !util.isDisabled(srvName)) {
         that.#srvDef[srvName] = {}
       }
     }
-    for (let i = 0; i < knowSrvs.length; i++) {
-      const srvName = knowSrvs[i]
+    for (let i = 0; i < SrvFactory.consts.KnowSrvs.length; i++) {
+      const srvName = SrvFactory.consts.KnowSrvs[i]
       if (!that.#srvDef[srvName] && util.isEnabled(srvName)) {
         that.#srvDef[srvName] = {}
       }
@@ -109,26 +60,25 @@ class Cluster {
 
     for (const nodeName in that.#nodes) {
       const node = that.#nodes[nodeName]
-      console.log('node = ', node)
+      // console.log('Init node service,node = ', node)
       node.initSrvs()
     }
 
     // noAllocSrv保存了没有分配节点的服务。
     const noAllocSrv = []
     for (const srvName in that.#srvDef) {
-      console.log('srvName=', srvName)
       if (!_.find(that.#nodes, (n) => n.srv(srvName))) {
         noAllocSrv.push(srvName)
       }
     }
 
-    for (const srvName in noAllocSrv) {
-      SrvFactory.alloc(that, srvName, that.srvDef(srvName))
-    }
+    _.forEach(noAllocSrv, (v, k) => {
+      SrvFactory.alloc(that, v, that.srvDef(v))
+    })
 
     // 未定义ossDef.
     if (!that.#ossDef) {
-      const node = _.find(that.#nodes, (n) => n.srv(CloudServer))
+      const node = _.find(that.#nodes, (n) => n.srv(SrvFactory.consts.CloudServer))
       if (node) {
         that.#ossDef = {
           type: 'local'
@@ -156,7 +106,7 @@ class Cluster {
     const that = this
     const { _ } = that.envs.soa
 
-    console.log('that.definition=', that.definition)
+    // console.log('that.definition=', that.definition)
 
     // 加载cluster的全部服务及节点。
     for (const keyName in that.definition) {
@@ -165,7 +115,7 @@ class Cluster {
       } else {
         that.#nodes[keyName] = NodeFactory.create(keyName, that.definition[keyName], that)
       }
-      console.log('nodeName=', keyName)
+      // console.log('nodeName=', keyName)
     }
 
     // 如果没有任意节点，并且是dev环境，加入默认节点local。
@@ -182,7 +132,7 @@ class Cluster {
       throw new TypeError(`目标集群${that.envs.args.target}未指定任意可计算节点(本地计算机只属于dev集群)。`)
     }
 
-    console.log(this)
+    // console.log(this.nodes)
   }
 
   async finish (node) {

@@ -16,6 +16,10 @@ class Base {
     this.name = name
     this.#node = node
   }
+
+  toString () {
+    return `${this.name}: ${JSON.stringify(this.srvDef)}`
+  }
 }
 
 module.exports = Base

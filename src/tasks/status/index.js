@@ -1,7 +1,7 @@
 
 module.exports = function (opts) {
   return async function () {
-    const { deployer } = opts
+    const { cluster } = opts
     // console.log('deployer=', deployer)
     const tasks = []
     let hassh = false
