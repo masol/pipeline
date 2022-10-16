@@ -80,7 +80,6 @@ module.exports.fetch = async function (that) {
       }
     }
   }
-  console.log('that=', that)
 }
 
 /**
@@ -124,8 +123,8 @@ module.exports.fetchSrv = async function (that, srvName, srv) {
   }
 }
 
-// linux下的deployBase
-module.exports.deployBase = async function (driver, { name, node, term }) {
+// linux下的deployEnv
+module.exports.deployEnv = async function (driver, { name, node, term }) {
   const { s } = driver.opts.soa
   const logfname = `~/install-${new Date().toJSON().slice(0, 10)}.log`
   // console.log('logfname=', logfname)
