@@ -46,7 +46,9 @@ async function ensurePath (sftp, filepath) {
 }
 
 async function cp2lGather (sftp, remote, local, opts) {
-  const { ctx, _, s } = opts
+  const { ctx, _, s, filter } = opts
+  // 返回true表示继续。filter只处理文件，目录会全部保存。
+  const filterHandler = _.isFunction(filter) ? filter : () => true
   const dirs = await sftp.readdir(remote).catch(e => {
     if (e.code === 2) { // 忽略不存在的错误。
       return []
@@ -68,6 +70,9 @@ async function cp2lGather (sftp, remote, local, opts) {
       })
       await cp2lGather(sftp, dirName, path.join(local, item.filename), opts)
     } else if (entry.isFile()) {
+      if (!filterHandler(remote, item)) { // 不处理此节点，继续。
+        continue
+      }
       ctx.cpTasks.push({
         remote: linuxPath('join', [remote, item.filename]),
         local: path.join(local, item.filename)

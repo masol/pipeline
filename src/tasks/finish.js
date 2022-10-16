@@ -13,8 +13,8 @@ module.exports = function (opts) {
   return async function () {
     const { cluster } = opts
     const tasks = [
-      cluster.finish(),
-      opts.tmp.clean()
+      cluster.finish()
+      // opts.tmp.clean()
     ]
     await Promise.all(tasks)
   }

@@ -13,6 +13,7 @@ const yaml = require('js-yaml')
 const fs = require('fs').promises
 const path = require('path')
 const utils = require('../../utils')
+const srvUtils = require('../../srv/utils')
 
 function getIssue (node) {
   const s = node.$env.soa.s
@@ -123,9 +124,21 @@ module.exports.fetchSrv = async function (that, srvName, srv) {
   }
 }
 
+async function loadTop (pathfile) {
+  const fileContent = await fs.readFile(pathfile, 'utf-8').catch((e) => '')
+  const top = fileContent
+    ? yaml.load(fileContent, 'utf8')
+    : {
+        base: {
+          '*': []
+        }
+      }
+  return top
+}
+
 // linux下的deployEnv
 module.exports.deployEnv = async function (node) {
-  const { s } = node.$env.soa
+  const { _, s } = node.$env.soa
   const term = node.$term
   const logfname = `~/install-${new Date().toJSON().slice(0, 10)}.log`
   // console.log('logfname=', logfname)
@@ -183,37 +196,39 @@ module.exports.deployEnv = async function (node) {
   const localBase = node.$env.tmp.name
   // console.log('localBase=', localBase)
   // 忽略拷贝到本地的错误。会导致意外的覆盖。
-  await sftp.cp2Local('/srv/salt', localSalt).catch(e => false)
+  await sftp.cp2Local('/srv/salt', localSalt, srvUtils.saltFilter).catch(e => false)
   await sftp.cp2Local('/srv/pillar', localPillar).catch(e => false)
-  // 读取local yml
-  const origCompStr = await fs.readFile(path.join(localSalt, 'top.sls'), 'utf-8').catch((e) => '')
-  const compose = origCompStr
-    ? yaml.load(origCompStr, 'utf8')
-    : {
-        base: {
-          '*': []
-        }
-      }
 
+  // 读取local yml
+  const isForce = node.$env.args.force
+  const stateTop = await loadTop(path.join(localSalt, 'top.sls'))
+  const pillarTop = await loadTop(path.join(localPillar, 'top.sls'))
   const srvTasks = []
   const postTasks = []
-  for (const srvName in node.srvs) {
-    const srv = node.srvs[srvName]
+  // @TODO: 支持服务的删除。
+  _.forEach(node._srvs, (srv, srvName) => {
+    // 忽略以$开头的服务。
+    if (s.startsWith(srvName, '$')) {
+      return
+    }
     try {
       const srvFunc = require(`../../srv/${srvName}`).deploy
-      // 只有服务未就绪，或者原始compStr无值时才执行。
-      if (!srv.ok || !origCompStr) {
-        srvTasks.push(srvFunc(node.$env, { localBase, compose, srvName, srv, postTasks }))
+      // 只有服务未就绪，或者开启了force模式时才执行。
+      if (!srv.ok || isForce) {
+        srvTasks.push(srvFunc(node, { localBase, stateTop, pillarTop, srvName, srv, postTasks }))
       } else {
         // console.log('ignore srv:', srvName)
       }
     } catch (e) {
+      console.log(e)
       throw new Error(`请求了未支持的本地服务:${srvName}`)
     }
-  }
+  })
 
-  console.log('compose=', compose)
-  console.log('new compose=', yaml.dump(compose, { sortKeys: false }))
+  await Promise.all(srvTasks)
+
+  console.log('compose=', stateTop)
+  console.log('new compose=', yaml.dump(stateTop, { sortKeys: false }))
   // 创建配置。
   // cp2Remote(localpath,'srv/salt)
   // exec('salt-call apply state')

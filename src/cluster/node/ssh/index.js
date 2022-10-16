@@ -31,18 +31,13 @@ class SSH extends Base {
     }
   }
 
-  async deployEnv (node, name) {
-    if (node.type !== 'ssh') {
-      return await super.deployBase(node, name)
-    }
-    node.$term = node.$term || await Term.create(this.$envs, node)
-    await require(`./os/${node.$info.os.type.toLowerCase()}`).deployEnv(this, { name, node, term: node.$term })
+  async deployEnv () {
+    const that = this
+    that.$term = that.$term || await Term.create(this.$envs, that)
+    await require(`./os/${that.$info.os.type.toLowerCase()}`).deployEnv(that)
   }
 
-  async deployApp (node, name) {
-    if (node.type !== 'ssh') {
-      return await super.deployComp(node, name)
-    }
+  async deployApp () {
   }
 
   async fetchSrv () {

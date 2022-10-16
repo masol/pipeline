@@ -262,7 +262,7 @@ class Cluster {
 
     if (!isDev) {
       // 本地环境下不执行编译任务。
-      that.getCompileTask(compSrvs)
+      that.#getCompileTask(compSrvs)
     }
 
     let animation
