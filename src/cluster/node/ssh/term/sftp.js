@@ -45,9 +45,9 @@ async function ensurePath (sftp, filepath) {
   return statInfo
 }
 
-async function cp2lGather (sftp, src, target, opts) {
+async function cp2lGather (sftp, remote, local, opts) {
   const { ctx, _, s } = opts
-  const dirs = await sftp.readdir(src).catch(e => {
+  const dirs = await sftp.readdir(remote).catch(e => {
     if (e.code === 2) { // 忽略不存在的错误。
       return []
     }
@@ -57,20 +57,20 @@ async function cp2lGather (sftp, src, target, opts) {
   for (const item of dirs) {
     const entry = new Stats(item.attrs)
     if (entry.isDirectory()) {
-      const dirName = linuxPath('join', [src, item.filename, '/'])
+      const dirName = linuxPath('join', [remote, item.filename, '/'])
       // 由于顺序遍历，dirName只能是dirTasks中的子目录。
       _.remove(ctx.dirTasks, (n) => {
         return s.startsWith(dirName, n.remote)
       })
       ctx.dirTasks.push({
         remote: dirName,
-        local: path.join(target, item.filename)
+        local: path.join(local, item.filename)
       })
-      await cp2lGather(sftp, dirName, path.join(target, item.filename), opts)
+      await cp2lGather(sftp, dirName, path.join(local, item.filename), opts)
     } else if (entry.isFile()) {
       ctx.cpTasks.push({
-        remote: linuxPath('join', [src, item.filename]),
-        local: path.join(target, item.filename)
+        remote: linuxPath('join', [remote, item.filename]),
+        local: path.join(local, item.filename)
       })
     } else if (entry.isSymbolicLink()) {
       console.log('忽略符号链接拷贝请求:', item)
@@ -80,13 +80,13 @@ async function cp2lGather (sftp, src, target, opts) {
   }
 }
 
-async function cp2Local (sftp, src, target, envOpts) {
+async function cp2Local (sftp, remote, local, envOpts, filter) {
   const ctx = {
     dirTasks: [],
     cpTasks: []
   }
   const { _, s, $ } = envOpts.soa
-  await cp2lGather(sftp, src, target, { ctx, _, s })
+  await cp2lGather(sftp, remote, local, { ctx, _, s, filter })
   const limit = parseInt(envOpts.args.concurrency) || 5
   await $.mapLimit(ctx.dirTasks, limit, (item) => {
     return fs.access(item.local, fs.constants.F_OK)
@@ -102,7 +102,7 @@ async function cp2Local (sftp, src, target, envOpts) {
   // console.log('ctx.cpTasks=', ctx.cpTasks)
 }
 
-async function cp2Remote (sftp, src, target) {
+async function cp2Remote (sftp, local, remote, envOpts, filter) {
 }
 
 module.exports.ensurePath = ensurePath

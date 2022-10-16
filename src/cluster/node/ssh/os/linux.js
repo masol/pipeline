@@ -12,10 +12,27 @@
 const yaml = require('js-yaml')
 const fs = require('fs').promises
 const path = require('path')
+const utils = require('../utils')
+
+function getIssue (node) {
+  const s = node.$env.soa.s
+  const issue = s.trim(node.$info.os.platform).toLowerCase()
+  return issue
+}
+/** 可以采用相同指令集维护的issue */
+// const issueMapper = {
+//   centos: 'fedora'
+// }
+// function loadIssue (node) {
+//   const issue = getIssue(node)
+//   return require(`./issue/${issueMapper[issue] || issue}`)
+// }
 
 /// 获取Linux下的系统信息。
-module.exports.info = async function (driver, { node, term, s, getByte }) {
-  const $info = node.$info
+module.exports.fetch = async function (that) {
+  const $info = that.$info
+  const term = that.$term
+  const { s } = that.$env.soa
   const family = await term.exec('cat /proc/cpuinfo | grep \'model name\' | uniq')
   $info.family = s.trim(s.strRight(family, ':'))
   $info.core = await term.exec('cat /proc/cpuinfo | grep processor | wc -l')
@@ -35,9 +52,9 @@ module.exports.info = async function (driver, { node, term, s, getByte }) {
   $info.mem = {}
   for (const line of memInfos) {
     if (s.startsWith(line, 'MemTotal:')) {
-      $info.mem.total = getByte(s, line)
+      $info.mem.total = utils.getByte(s, line)
     } else if (s.startsWith(line, 'MemFree:')) {
-      $info.mem.free = getByte(s, line)
+      $info.mem.free = utils.getByte(s, line)
     }
   }
   const netLines = s.lines(await term.exec('ip addr'))
@@ -63,29 +80,43 @@ module.exports.info = async function (driver, { node, term, s, getByte }) {
       }
     }
   }
+  console.log('that=', that)
 }
 
 /**
  *  只有不同发行版名称不同的，才需要加入map.例如apache2入口:
- apache2: {
-  'centos': 'httpd',
-  'fedora': 'httpd'
- }
+{
+  apache2: {
+    'centos': 'httpd',
+    'fedora': 'httpd'
+  }
+}
 */
 const srvNameMap = {}
-// 获取linux下的服务信息。
-module.exports.srv = async function (driver, { srvName, srv, node, term }) {
-  const { s } = driver.opts.soa
+async function getSrvStatus (node, srvName) {
+  const { s } = node.$env.soa
+  const term = node.$term
   const commonName = s.startsWith(srvName, '$') ? s.strRight(srvName, '$') : srvName
   const mapEntry = srvNameMap[commonName]
-  const issuer = s.trim(node.$info.os.platform).toLowerCase()
-  const usedName = mapEntry && mapEntry[issuer]
-    ? mapEntry[issuer]
+  const issue = getIssue(node)
+  const usedName = mapEntry && mapEntry[issue]
+    ? mapEntry[issue]
     : commonName
-  const status = await term.exec(`systemctl status ${usedName}`).catch(e => {
-    return false
-  })
-  // console.log(usedName, 'status=', status)
+
+  // 默认采用
+  let status
+  switch (issue) {
+    default:
+      status = await term.exec(`systemctl status ${usedName}`).catch(e => {
+        return false
+      })
+  }
+  return status
+}
+
+// 获取linux下的服务信息。
+module.exports.fetchSrv = async function (that, srvName, srv) {
+  const status = await getSrvStatus(that, srvName)
   if (!status) {
     srv.status.ok = false
   } else {
@@ -93,14 +124,6 @@ module.exports.srv = async function (driver, { srvName, srv, node, term }) {
   }
 }
 
-/** 可以采用相同指令集维护的issue */
-const osMapper = {
-  centos: 'fedora'
-}
-function getIssue (node) {
-  const issue = node.$info.os.platform.toLowerCase()
-  return osMapper[issue] || issue
-}
 // linux下的deployBase
 module.exports.deployBase = async function (driver, { name, node, term }) {
   const { s } = driver.opts.soa

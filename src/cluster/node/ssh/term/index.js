@@ -16,31 +16,31 @@ const sftpUtil = require('./sftp')
 
 const $VaultPrefix = '$vault:'
 
-async function getConf (envOpts, node) {
+async function getConf (envOpts, definition) {
   const cfgutil = envOpts.config.util
   const { s } = envOpts.soa
-  const secretPath = cfgutil.path('pvdev', 'nodes', envOpts.args.target, 'secret')
+  const secretPath = cfgutil.path('pvdev', 'cluster', envOpts.args.target, 'secret')
   const secretMap = JSON.parse(await fs.readFile(path.join(secretPath, 'secret.json'), 'utf8').catch(e => {
     return '{}'
   }))
-  if (!node.host) {
+  if (!definition.host) {
     throw new Error('ssh节点必须指定host。')
   }
   const conf = {
-    host: node.host,
-    port: node.port || 22,
-    username: node.username || 'root'
+    host: definition.host,
+    port: definition.port || 22,
+    username: definition.username || 'root'
   }
-  const passwd = (s.startsWith(node.password, $VaultPrefix)
-    ? secretMap[s.strRight(node.password, ':')]
-    : node.password)
-  if (!passwd && !node.key) {
+  const passwd = (s.startsWith(definition.password, $VaultPrefix)
+    ? secretMap[s.strRight(definition.password, ':')]
+    : definition.password)
+  if (!passwd && !definition.key) {
     throw new Error('ssh节点必须指定密码或证书中的一个')
   }
   if (passwd) {
     conf.password = passwd
   } else {
-    conf.privateKey = await fs.readFile(path.join(secretPath, node.key))
+    conf.privateKey = await fs.readFile(path.join(secretPath, definition.key))
   }
   return conf
 }
@@ -55,11 +55,11 @@ function pvftp (term, envOpts) {
       inst.ensure = async (path) => {
         return await sftpUtil.ensurePath(inst, path)
       }
-      inst.cp2Local = async (src, target) => {
-        await sftpUtil.cp2Local(inst, src, target, envOpts)
+      inst.cp2Local = async (remote, local, filter) => {
+        await sftpUtil.cp2Local(inst, remote, local, envOpts, filter)
       }
-      inst.cp2Remote = async (src, target) => {
-        return await sftpUtil.cp2Remote(inst, src, target, envOpts)
+      inst.cp2Remote = async (local, remote, filter) => {
+        return await sftpUtil.cp2Remote(inst, local, remote, envOpts, filter)
       }
     }
     return inst
@@ -67,8 +67,9 @@ function pvftp (term, envOpts) {
 }
 
 module.exports.create = async (envOpts, node) => {
-  const hop = node.hop || []
-  let conf = await getConf(envOpts, node)
+  const definition = node.$definition
+  const hop = definition.hop || []
+  let conf = await getConf(envOpts, definition)
   if (hop.length > 0) {
     const nodes = envOpts.deployer.nodes
     const hopConf = []

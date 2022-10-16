@@ -10,27 +10,16 @@
 // File: salt
 
 const Base = require('../base')
-const Term = require('../../../tasks/common/driver/salt/term')
+const Term = require('./term')
 
-/** 获取linux cat /proc/meminfo某行的值。结果为bytes. */
-
-function getByte (s, line) {
-  const mem = (s.trim(s.strRight(line, ':'))).split(' ')
-  let mul = 1
-  if (mem.length > 1) {
-    switch ((s.trim(mem[1])).toLowerCase()) {
-      case 'kb':
-        mul = 1024
-        break
-      case 'mb':
-        mul = 1024 * 1024
-        break
-      case 'gb':
-        mul = 1024 * 1024
-    }
-  }
-  const num = parseInt(mem[0]) * mul
-  return num
+// 记录不同种类的os,可以使用相同的adapter来维护。
+const ostypeMapper = {
+  darwin: 'freebsd'
+}
+// 根据操作系统类习惯你加载不同的处理库。
+function requireOS (ostype) {
+  const type = ostypeMapper[ostype] || ostype
+  return require(`./os/${type.toLowerCase()}`)
 }
 
 class SSH extends Base {
@@ -42,55 +31,49 @@ class SSH extends Base {
     }
   }
 
-  async deployBase (node, name) {
+  async deployEnv (node, name) {
     if (node.type !== 'ssh') {
       return await super.deployBase(node, name)
     }
-    node.$term = node.$term || await Term.create(this.opts, node)
-    await require(`./os/${node.$info.os.type.toLowerCase()}`).deployBase(this, { name, node, term: node.$term })
+    node.$term = node.$term || await Term.create(this.$envs, node)
+    await require(`./os/${node.$info.os.type.toLowerCase()}`).deployEnv(this, { name, node, term: node.$term })
   }
 
-  async deployComp (node, name) {
+  async deployApp (node, name) {
     if (node.type !== 'ssh') {
       return await super.deployComp(node, name)
     }
   }
 
-  async srvStatus (node) {
-    if (node.type !== 'ssh') {
-      return await super.srvStatus(node)
-    }
-    const term = node.$term || await Term.create(this.opts, node)
-    node.$term = term
-    for (const srvName in node.srvs) {
-      const srv = node.srvs[srvName]
+  async fetchSrv () {
+    const that = this
+    const { _ } = that.$env.soa
+    const term = that.$term || await Term.create(this.opts, that)
+    that.$term = term
+    _.forEach(that._srvs, async (srv, srvName) => {
       if (!srv.status) {
         srv.status = {}
-        await require(`./os/${node.$info.os.type.toLowerCase()}`).srv(this, { srvName, srv, node, term })
+        await requireOS(that.$info.os.type.toLowerCase()).fetchSrv(that, srvName, srv)
       }
-    }
+    })
     // throw new Error('sal srvStatus 尚未实现')
   }
 
-  async info (node) {
-    if (node.type !== 'ssh') {
-      return await super.info(node)
-    }
-    if (!node.$info) {
-      const { s } = this.opts.soa
-      node.$info = {}
-      const $info = node.$info
-      const term = node.$term || await Term.create(this.opts, node)
-      node.$term = term
+  async fetch () {
+    const that = this
+    if (!that.$info) {
+      const { s } = that.$env.soa
+      that.$info = {}
+      const $info = that.$info
+      const term = that.$term || await Term.create(that.$env, that)
+      that.$term = term
 
       // console.log('term=', term)
       // const shell = await term.shell()
       $info.os = {}
       $info.os.type = s.trim(await term.exec('uname -s'))
-      // console.log(fetcherImpl)
       // 如果对应type的fetcher不存在，直接抛出异常。
-      await require(`./os/${$info.os.type.toLowerCase()}`).info(this, { node, term, s, getByte })
-      // await term.close()
+      await requireOS($info.os.type.toLowerCase()).fetch(that)
     }
   }
 }
