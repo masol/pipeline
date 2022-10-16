@@ -1,7 +1,7 @@
 
 const fs = require('fs').promises
 const path = require('path')
-const Cluster = require('../../cluster')
+const Cluster = require('../cluster')
 
 const ManualFile = 'manual.json'
 const AutoFile = 'auto.json'
