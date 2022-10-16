@@ -12,7 +12,7 @@
 const yaml = require('js-yaml')
 const fs = require('fs').promises
 const path = require('path')
-const utils = require('../utils')
+const utils = require('../../utils')
 
 function getIssue (node) {
   const s = node.$env.soa.s
@@ -20,13 +20,13 @@ function getIssue (node) {
   return issue
 }
 /** 可以采用相同指令集维护的issue */
-// const issueMapper = {
-//   centos: 'fedora'
-// }
-// function loadIssue (node) {
-//   const issue = getIssue(node)
-//   return require(`./issue/${issueMapper[issue] || issue}`)
-// }
+const issueMapper = {
+  centos: 'fedora'
+}
+function loadIssue (node) {
+  const issue = getIssue(node)
+  return require(`./issue/${issueMapper[issue] || issue}`)
+}
 
 /// 获取Linux下的系统信息。
 module.exports.fetch = async function (that) {
@@ -124,13 +124,15 @@ module.exports.fetchSrv = async function (that, srvName, srv) {
 }
 
 // linux下的deployEnv
-module.exports.deployEnv = async function (driver, { name, node, term }) {
-  const { s } = driver.opts.soa
+module.exports.deployEnv = async function (node) {
+  const { s } = node.$env.soa
+  const term = node.$term
   const logfname = `~/install-${new Date().toJSON().slice(0, 10)}.log`
   // console.log('logfname=', logfname)
-  if (driver.opts.args.mirror) {
+  const reqMirror = node.$env.args.mirror
+  if (reqMirror) {
     // 检查并修改服务器的mirror设置。
-    await require(`./issue/${getIssue(node)}`).mirror(driver, { logfname, node, term, s })
+    await loadIssue(node).mirror({ logfname, node, term, s })
     // console.log('node=', node)
   }
   let saltCmd = s.trim(await term.exec('which salt-call').catch(e => ''))
@@ -138,7 +140,7 @@ module.exports.deployEnv = async function (driver, { name, node, term }) {
     // 安装salt-minion,并且不启动salt服务。
     const localBSFile = '~/bootstrap-salt.sh'
     const mirrorURL = 'https://libs.wware.org/stacksalt/20221004/bootstrap_salt.sh'
-    const saltURL = driver.opts.args.mirror ? mirrorURL : 'https://bootstrap.saltstack.com'
+    const saltURL = reqMirror ? mirrorURL : 'https://bootstrap.saltstack.com'
     await term.exec(`wget -O ${localBSFile} ${saltURL} 2>&1 | tee -a ${logfname}`).catch(e => false)
     // @TODO: 官方未提供MD5校验码?
     const chk = s.trim(await term.exec(`grep __ScriptVersion= ${localBSFile}`).catch(e => false))
@@ -158,7 +160,7 @@ module.exports.deployEnv = async function (driver, { name, node, term }) {
     await term.exec(`sudo sh ${localBSFile} -X 2>&1 | tee -a ${logfname}`).catch(e => '')
     saltCmd = s.trim(await term.exec('which salt-call').catch(e => ''))
     if (!saltCmd) {
-      throw new Error(`节点${name}上,安装salt-minion失败，请查看${logfname}了解详情。`)
+      throw new Error(`节点${node.$name}上,安装salt-minion失败，请查看${logfname}了解详情。`)
     }
   }
 
@@ -167,7 +169,7 @@ module.exports.deployEnv = async function (driver, { name, node, term }) {
   if (!isLocal) {
     await term.exec('sudo sed -i "s/#file_client: remote/file_client: local/" /etc/salt/minion').catch(e => '')
     if (!s.trim(await term.exec('grep "file_client: local" /etc/salt/minion').catch(e => ''))) {
-      throw new Error(`节点${name}上,无法设置salt-minion为masterless模式，请查看${logfname}了解详情。`)
+      throw new Error(`节点${node.$name}上,无法设置salt-minion为masterless模式，请查看${logfname}了解详情。`)
     }
   }
   // 根据服务，创建STATE TREE。
@@ -176,12 +178,15 @@ module.exports.deployEnv = async function (driver, { name, node, term }) {
   // const statInfo = await sftp.ensure('/srv/salt')
   // console.log('statInfo=', statInfo)
 
-  const localBase = await driver.opts.tmp.ensure(name, 'salt')
+  const localSalt = await node.$env.tmp.ensure(node.$name, 'salt')
+  const localPillar = await node.$env.tmp.ensure(node.$name, 'pillar')
+  const localBase = node.$env.tmp.name
   // console.log('localBase=', localBase)
   // 忽略拷贝到本地的错误。会导致意外的覆盖。
-  await sftp.cp2Local('/srv/salt', localBase).catch(e => false)
+  await sftp.cp2Local('/srv/salt', localSalt).catch(e => false)
+  await sftp.cp2Local('/srv/pillar', localPillar).catch(e => false)
   // 读取local yml
-  const origCompStr = await fs.readFile(path.join(localBase, 'top.sls'), 'utf-8').catch((e) => '')
+  const origCompStr = await fs.readFile(path.join(localSalt, 'top.sls'), 'utf-8').catch((e) => '')
   const compose = origCompStr
     ? yaml.load(origCompStr, 'utf8')
     : {
@@ -195,10 +200,10 @@ module.exports.deployEnv = async function (driver, { name, node, term }) {
   for (const srvName in node.srvs) {
     const srv = node.srvs[srvName]
     try {
-      const srvFunc = require(`../srv/${srvName}`).deploy
+      const srvFunc = require(`../../srv/${srvName}`).deploy
       // 只有服务未就绪，或者原始compStr无值时才执行。
       if (!srv.ok || !origCompStr) {
-        srvTasks.push(srvFunc(driver.opts, { localBase, compose, srvName, srv, postTasks }))
+        srvTasks.push(srvFunc(node.$env, { localBase, compose, srvName, srv, postTasks }))
       } else {
         // console.log('ignore srv:', srvName)
       }

@@ -10,7 +10,7 @@
 // File: ubuntu
 
 // ubuntu镜像使用清华大学镜像。https://mirror.tuna.tsinghua.edu.cn/help/ubuntu/
-module.exports.mirror = async function (driver, { node, term, logfname, s }) {
+module.exports.mirror = async function ({ node, term, logfname, s }) {
   const isMirror = s.trim(await term.exec('grep "mirrors.tuna.tsinghua.edu.cn" /etc/apt/sources.list').catch(e => false))
   if (!isMirror) {
     await term.exec('sudo sed -i "s@http://.*archive.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list').catch(e => false)
