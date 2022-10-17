@@ -45,6 +45,7 @@
     name: { //name是固定的，目前只支持base,pg,redis,elastic,vault,keycloak,$webapi。$webass(只有在oss不存在时，部署为$webapi的静态资源)。$webwx,$webmb,$webapp(桌面应用),$webtv等资源不属于节点，而是部署为外部服务(类似oss)。
       name: '', //可选，如果在node中直接定义，需要给出名称。如果与外部名称冲突，这一属性拥有高优先级。
       version: '', //可选，选定版本。
+      type: 'master|slave', //默认为全master模式。
       /*其它属性由服务自行规定。
       pg:(括号内为默认值)
       username:(app)

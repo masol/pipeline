@@ -43,12 +43,18 @@ class Base {
     return ret
   }
 
+  srvCount () {
+    const { _ } = this.$env.soa
+    return _.keys(this._srvs)
+  }
+
   srv (name) {
     return this._srvs[name]
   }
 
   get hop () {
-    return this.#nodeDef.hop
+    const { _ } = this.$env.soa
+    return _.isArray(this.#nodeDef.hop) ? this.#nodeDef.hop : []
   }
 
   addSrv (srvName, srvDef) {
