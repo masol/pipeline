@@ -11,14 +11,34 @@
 
 class Base {
   #node
+  #name
   constructor (name, srvDef, node) {
     this.srvDef = srvDef || {}
-    this.name = name
+    this.#name = name
     this.#node = node
   }
 
-  toString () {
-    return `${this.name}: ${JSON.stringify(this.srvDef)}`
+  get name () {
+    return this.#name
+  }
+
+  get node () {
+    return this.#node
+  }
+
+  // 获取集群下，拥有相同服务的节点,不包括自身。
+  srvNodes () {
+    const that = this
+    const allNodes = that.#node.$cluster.nodes
+    const { _ } = that.#node.$env.soa
+    const ret = []
+    _.forEach(allNodes, (node, nodeName) => {
+      const srv = node.srv(that.name)
+      if (srv && srv !== that) {
+        ret.push(node)
+      }
+    })
+    return ret
   }
 }
 

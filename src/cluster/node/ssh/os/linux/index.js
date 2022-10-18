@@ -92,24 +92,47 @@ module.exports.fetch = async function (that) {
   }
 }
 */
-const srvNameMap = {}
+const srvNameMap = {
+  postgres: {
+    default: 'postgresql'
+  }
+}
+function getSrvName (srvName, issue, _) {
+  let realSrvName = srvName
+  const srvEntry = srvNameMap[srvName]
+  if (_.isObject(srvEntry)) {
+    if (_.isString(srvEntry[issue]) && srvEntry[issue]) {
+      realSrvName = srvEntry[issue]
+    } else if (_.isString(srvEntry.default) && srvEntry.default) {
+      realSrvName = srvEntry.default
+    }
+  } else if (_.isString(srvEntry)) {
+    realSrvName = srvEntry
+  }
+  return realSrvName
+}
 async function getSrvStatus (node, srvName) {
-  const { s } = node.$env.soa
+  const { s, _ } = node.$env.soa
   const term = node.$term
   const commonName = s.startsWith(srvName, '$') ? s.strRight(srvName, '$') : srvName
-  const mapEntry = srvNameMap[commonName]
   const issue = getIssue(node)
-  const usedName = mapEntry && mapEntry[issue]
-    ? mapEntry[issue]
-    : commonName
+  const usedName = getSrvName(commonName, issue, _)
 
   // 默认采用
   let status
   switch (issue) {
-    default:
-      status = await term.exec(`systemctl status ${usedName}`).catch(e => {
+    default:{
+      // console.log('systemctl status usedName=', `systemctl status ${usedName}`)
+      const statusRes = await term.exec(`systemctl status ${usedName}`).catch(e => {
         return false
       })
+      // console.log('statusRes=', statusRes)
+      if (_.isString(statusRes) && /Active: active/.test(statusRes)) {
+        status = true
+      } else {
+        status = false
+      }
+    }
   }
   return status
 }
@@ -227,8 +250,16 @@ module.exports.deployEnv = async function (node) {
 
   await Promise.all(srvTasks)
 
-  console.log('compose=', stateTop)
-  console.log('new compose=', yaml.dump(stateTop, { sortKeys: false }))
+  // console.log('compose=', stateTop)
+  // console.log('new compose=', yaml.dump(stateTop, { sortKeys: false }))
+
+  await fs.writeFile(path.join(localSalt, 'top.sls'), yaml.dump(stateTop, { sortKeys: false }))
+  await fs.writeFile(path.join(localPillar, 'top.sls'), yaml.dump(pillarTop, { sortKeys: false }))
+
+  await sftp.cp2Remote(localSalt, '/srv/salt')
+  await sftp.cp2Remote(localPillar, '/srv/pillar')
+
+  // await fs.writeFile()
   // 创建配置。
   // cp2Remote(localpath,'srv/salt)
   // exec('salt-call apply state')

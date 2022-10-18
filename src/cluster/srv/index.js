@@ -54,7 +54,7 @@ function alloc (cluster, name, srvDef) {
     csNode.addSrv(name, srvDef)
   } else { // 为所有节点添加此服务。
     if (nodeCount <= 5) {
-      if (name === Redis) { // redis只配置两台服务。
+      if (name === Redis) { // redis只配置两台服务，目前只能是主从。
         const nodeSrvOrder = _.sortBy(nodes, (n) => n.srvCount())
         let master, slave
         for (let i = 0; i < nodeSrvOrder.length; i++) {
@@ -84,7 +84,9 @@ function alloc (cluster, name, srvDef) {
         }
       } else {
         _.forEach(nodes, n => {
-          if (!n.addSrv(name, srvDef)) {
+          const def = _.clone(srvDef)
+          def.type = def.type || 'master'
+          if (!n.addSrv(name, def)) {
             throw new Error(`无法为节点${n.name}加入服务${name},已经存在？`)
           }
         })
@@ -95,8 +97,27 @@ function alloc (cluster, name, srvDef) {
   }
 }
 
+function taskWrapper (taskHandler) {
+  return async function (fullName, srv, taskName) {
+    return await taskHandler(srv, taskName)
+  }
+}
+
+const onceTaskCache = {}
+// 添加一个每服务全进程只执行一次的task，无论调用多少次,只执行一次。taskHandler的第一个参数为fullname,用于确定任务缓冲。
+async function callOnceTask (taskName, srv, taskHandler) {
+  // srv为节点或srv实例。其获取名称方式不同。
+  const fullName = `${srv.name || srv.$name}-${taskName || ''}`
+  const { $ } = srv.node.$env.soa
+  if (!onceTaskCache[fullName]) {
+    onceTaskCache[fullName] = $.memoize(taskWrapper(taskHandler))
+  }
+  return await onceTaskCache[fullName](fullName, taskName, srv)
+}
+
 module.exports.create = create
 module.exports.alloc = alloc
+module.exports.callOnceTask = callOnceTask
 module.exports.consts = {
   CloudServer,
   DefSrvs,

@@ -107,7 +107,82 @@ async function cp2Local (sftp, remote, local, envOpts, filter) {
   // console.log('ctx.cpTasks=', ctx.cpTasks)
 }
 
-async function cp2Remote (sftp, local, remote, envOpts, filter) {
+async function cp2rGather (sftp, local, remote, opts) {
+  const { ctx, _, s } = opts
+  // 返回true表示继续。filter只处理文件，目录会全部保存。
+  // console.log('read local=', local)
+  const dirs = await fs.readdir(local).catch(e => {
+    if (e.code === 2) { // 忽略不存在的错误。
+      return []
+    }
+    throw e
+  })
+  // console.log('cp2 local dirs=', dirs)
+  for (const item of dirs) {
+    // console.log('item=', item)
+    // 不使用lstat,忽略link.
+    const fullItem = path.join(local, item)
+    const stats = await fs.stat(fullItem)
+    // console.log('stats=', stats)
+    if (stats.isDirectory()) {
+      // 由于顺序遍历，dirName只能是dirTasks中的子目录。
+      _.remove(ctx.dirTasks, (n) => {
+        return s.startsWith(fullItem, n.local)
+      })
+      const remoteDir = linuxPath('join', [remote, item])
+      ctx.dirTasks.push({
+        remote: remoteDir,
+        local: path.join(fullItem, path.sep)
+      })
+      await cp2rGather(sftp, fullItem, remoteDir, opts)
+    } else if (stats.isFile()) {
+      // 加入文件拷贝任务。
+      ctx.cpTasks.push({
+        remote: linuxPath('join', [remote, item]),
+        local: fullItem
+      })
+    } else if (stats.isSymbolicLink()) {
+      console.log('忽略符号链接拷贝请求:', fullItem)
+    } else {
+      throw new Error(`本地文件${fullItem}不被支持!`)
+    }
+  }
+}
+
+// 递归创建目录。
+async function sftpMkdir (sftp, remote) {
+  return await sftp.mkdir(remote).catch(async e => {
+    if (e.code === 2) { // 不存在。
+      return await sftpMkdir(sftp, linuxPath('dirname', [remote]))
+    } else if (e.code === 4) { // 已存在。
+      return []
+    }
+    console.log('mkdir error:', remote)
+    console.log(e)
+    throw e // 其它错误。
+  })
+  // console.log('mkdir result=', result)
+}
+
+async function cp2Remote (sftp, local, remote, envOpts) {
+  const ctx = {
+    dirTasks: [{ local: path.join(local, path.sep), remote }],
+    cpTasks: []
+  }
+  // console.log('before cp2rgather,tasks=', ctx)
+  const { _, s, $ } = envOpts.soa
+  await cp2rGather(sftp, local, remote, { ctx, _, s })
+  // console.log('after cp2rgather,tasks=')
+  // console.log(ctx.dirTasks)
+  // console.log(ctx.cpTasks)
+  const limit = parseInt(envOpts.args.concurrency) || 5
+  await $.mapLimit(ctx.dirTasks, limit, async (item) => {
+    return await sftpMkdir(sftp, item.remote)
+  })
+
+  await $.mapLimit(ctx.cpTasks, limit, async (item) => {
+    return await sftp.fastPut(item.local, item.remote)
+  })
 }
 
 module.exports.ensurePath = ensurePath

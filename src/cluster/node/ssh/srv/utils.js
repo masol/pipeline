@@ -37,7 +37,7 @@ function saltFilter (remote, entry) {
 
 function addSrv (top, srvName) {
   const srvArray = top.base['*']
-  if (!srvArray.indexOf(srvName)) {
+  if (srvArray.indexOf(srvName) < 0) {
     srvArray.push(srvName)
   }
 }
@@ -81,37 +81,56 @@ async function findFormulaRoot (curDir, idFile) {
   return ''
 }
 
-// 确保原始素材就绪。相同的fileUrl只会执行一次。
+// 确保原始素材就绪。相同的fileUrl只会执行一次。由于不清理服务器原有的文件，版本相同，则不再准备其它state file.
 async function ensureResource (fileUrl, base, info) {
   const zipFile = path.join(base, `${info.ver}.zip`)
   await fs.ensureFile(zipFile)
   await downloadFile(fileUrl, zipFile)
 
   const zipDir = path.join(base, info.ver)
-  console.log('zipDir=', zipDir)
+  // console.log('查看日志，多节点，相同url只出现一处,zipDir=', zipDir)
   await fs.emptyDir(zipDir)
   const extractor = (await import('extract-zip')).default
   await extractor(zipFile, { dir: zipDir })
   const fomulaBase = await findFormulaRoot(zipDir, info.idFile)
-  console.log('write file to', path.join(fomulaBase, info.subDir, getVerFile(info.name)))
+  // console.log('write file to', path.join(fomulaBase, info.subDir, getVerFile(info.name)))
   await fs.writeFile(path.join(fomulaBase, info.subDir, getVerFile(info.name)), info.ver)
   return fomulaBase
 }
 
+async function ensurePwdImpl (pwdFile, env) {
+  let passwd = await fs.readFile(pwdFile, 'utf8').catch(e => {
+    return ''
+  })
+
+  if (!passwd) {
+    const { _ } = env.soa
+    passwd = _.cryptoRandom({ length: 16 })
+    await fs.ensureFile(pwdFile)
+    await fs.writeFile(pwdFile, passwd)
+  }
+  return passwd
+}
+
 let ensureResourceCache
-function initERCache ($) {
+let ensurePwdCache
+function initCache ($) {
   if (!ensureResourceCache) {
     ensureResourceCache = $.memoize(ensureResource)
   }
+  if (!ensurePwdCache) {
+    ensurePwdCache = $.memoize(ensurePwdImpl)
+  }
 }
 
+// 确保本地的stateDir中的state文件就绪。从fomulaRoot/info.subDir中拷贝过来。
 async function ensureFormula (fileUrl, base, info, stateDir) {
   const fomulaRoot = await ensureResourceCache(fileUrl, base, info)
   // const zipDir = path.join(base, info.ver)
   // await findFormulaRoot(zipDir, info)
-  console.log('fomulaRoot=', fomulaRoot)
-  console.log('stateDir=', stateDir)
-  console.log('copy src=', path.join(fomulaRoot, info.subDir))
+  // console.log('fomulaRoot=', fomulaRoot)
+  // console.log('stateDir=', stateDir)
+  // console.log('copy src=', path.join(fomulaRoot, info.subDir))
   await fs.emptyDir(stateDir)
   await fs.copy(path.join(fomulaRoot, info.subDir), stateDir, {
     overwrite: true,
@@ -119,27 +138,101 @@ async function ensureFormula (fileUrl, base, info, stateDir) {
   })
 }
 
-/// 确保stateRes被保存到给定目录下。
+/// 尝试从pwdFile中加载密码文件，如果文件不存在，则
+async function ensurePasswd (pwdFile, env) {
+  return await ensurePwdCache(pwdFile, env)
+}
+
+/// 确保stateRes被保存到当前节点下，对应服务下。只有给出强制标志(--force)或版本不符才会拷贝，否则不做任何处理。
 async function ensureStateRes (node, info) {
   const { $ } = node.$env.soa
-  initERCache($)
+  initCache($)
   const stateDir = path.join(info.localBase, node.$name, 'salt', info.name)
-  console.log('info.name=', info.name, getVerFile(info.name))
-  console.log('path.join(stateDir, fomulaSrvs[info.name])=', path.join(stateDir, getVerFile(info.name)))
+  // console.log('info.name=', info.name, getVerFile(info.name))
+  // console.log('path.join(stateDir, fomulaSrvs[info.name])=', path.join(stateDir, getVerFile(info.name)))
   const VerStr = await fs.readFile(path.join(stateDir, getVerFile(info.name)), 'utf8').catch(e => '')
-  const reqMirror = node.$env.args.mirror
-  if (reqMirror || VerStr !== info.ver) {
+
+  const isForce = node.$env.args.force
+  if (isForce || VerStr !== info.ver) {
     // download file.
     const pipeDir = node.$env.config.util.path('.pipeline')
+    const reqMirror = node.$env.args.mirror
     const url = `${reqMirror ? info.mirror : info.url}${info.ver}.zip`
     const cacheDir = path.join(pipeDir, 'cache', 'salt-formula', info.name)
     await ensureFormula(url, cacheDir, info, stateDir)
-    console.log('pipeDir=', pipeDir)
+    // console.log('pipeDir=', pipeDir)
+  }
+}
+
+class SrvCluster {
+  #masters
+  #slaves
+  #cluster
+  constructor (srv) {
+    this.#masters = []
+    this.#slaves = []
+    this.#cluster = srv.node.$cluster
+    this.#init(srv)
+  }
+
+  #init (srv) {
+    const srvName = srv.name
+    const { _ } = srv.node.$env.soa
+    const srvNodes = srv.srvNodes()
+    // 先将srv对应的节点加入。
+    if (srv.srvDef.type === 'master') {
+      this.#masters.push(srv.node)
+    } else {
+      this.#slaves.push(srv.node)
+    }
+
+    if (srvNodes.length === 0) { // 单机模式。
+      // console.log('配置单机模式pg')
+    } else {
+      _.forEach(srvNodes, (n) => {
+        // console.log('n=', n)
+        const otherSrv = n.srv(srvName)
+        if (otherSrv.srvDef.type === 'master') {
+          this.#masters.push(n)
+        } else {
+          this.#slaves.push(n)
+        }
+      })
+    }
+  }
+
+  isSingle () {
+    return this.#masters.length === 1 && this.#slaves.length === 0
+  }
+
+  isMulMaster () {
+    return this.#masters.length > 1
+  }
+
+  #mapIps (nodeArray) {
+    const that = this
+    const { _ } = that.#cluster.envs.soa
+    const ret = []
+    _.forEach(nodeArray, (n) => {
+      /// @TODO: 如果host是域名,将其解析为ip.
+      ret.push(n.$definition.host)
+    })
+    return ret
+  }
+
+  masterIps () {
+    return this.#mapIps(this.#masters)
+  }
+
+  slaveIps () {
+    return this.#mapIps(this.#slaves)
   }
 }
 
 module.exports = {
   saltFilter,
   addSrv,
-  ensureStateRes
+  ensureStateRes,
+  ensurePasswd,
+  SrvCluster
 }
