@@ -245,6 +245,9 @@ class Cluster {
     // 有需要本地部署的服务，在本地编译任务结束后，需要重新调用compNodes的deployApp.
     const compNodes = []
 
+    // 在节点部署就绪后，执行的任务。
+    const clusterTasks = []
+
     // 保存了需要执行任务的节点。
     const tasks = []
     _.forEach(that.#nodes, async (node) => {
@@ -256,7 +259,7 @@ class Cluster {
       if (node.bSSH) {
         tasks.push(node)
       } else {
-        await node.deployEnv()
+        await node.deployEnv(clusterTasks)
       }
     })
 
@@ -274,7 +277,13 @@ class Cluster {
 
     const limit = parseInt(that.envs.args.concurrency) || 5
     await $.mapLimit(tasks, limit, (node) => {
-      return node.deployEnv()
+      return node.deployEnv(clusterTasks)
+    })
+
+    await $.mapLimit(tasks, limit, (taskInfo) => {
+      if (taskInfo.afterEnv) {
+        return taskInfo('afterEnv')
+      }
     })
 
     if (!_.isEmpty(needComp)) {
@@ -284,11 +293,23 @@ class Cluster {
       await that.#compile(needComp)
     }
 
+    await $.mapLimit(tasks, limit, (taskInfo) => {
+      if (taskInfo.afterEnv) {
+        return taskInfo('beforeApp')
+      }
+    })
+
     if (animation) {
       animation.replace('正在部署$web相关服务,请稍侯...')
     }
     await $.mapLimit(compNodes, limit, (node) => {
-      return node.deployApp()
+      return node.deployApp(clusterTasks)
+    })
+
+    await $.mapLimit(tasks, limit, (taskInfo) => {
+      if (taskInfo.afterEnv) {
+        return taskInfo('afterApp')
+      }
     })
 
     if (animation) {

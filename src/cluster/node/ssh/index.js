@@ -32,10 +32,10 @@ class SSH extends Base {
     }
   }
 
-  async deployEnv () {
+  async deployEnv (clusterTasks) {
     const that = this
-    that.$term = that.$term || await Term.create(this.$envs, that)
-    await requireOS(that.$info.os.type).deployEnv(that)
+    that.$term = that.$term || await Term.create(that.$envs, that)
+    await requireOS(that.$info.os.type).deployEnv(that, clusterTasks)
   }
 
   async deployApp () {

@@ -86,7 +86,34 @@ module.exports.fetchSrv = async function (srv) {
 
 /// 按照报告，stacksalt中的地址大量不可用，支持mirror需要大量改写，而mirror是必须支持的，否则中国区不可用。
 /// 因此废弃stacksalt-formula维护方式，直接使用ssh。在mirror开启后，访问大陆区镜像。
-module.exports.deployEnv = async function (node) {
+// clusterTasks的值为{'stageName': true,task: handler} 其中stageName为: afterEnv,beforeApp,afterApp
+module.exports.deployEnv = async function (node, clusterTasks) {
+  const { s } = node.$env.soa
+  const term = node.$term
+  const logfname = `~/install-${new Date().toJSON().slice(0, 10)}.log`
+  const reqMirror = node.$env.args.mirror
+  if (reqMirror) {
+    // 检查并修改服务器的mirror设置。
+    await requireIssue(node).mirror({ logfname, node, term, s })
+    // console.log('node=', node)
+  }
+  //   _.forEach(node._srvs, (srv, srvName) => {
+  //     // 忽略以$开头的服务。
+  //     if (s.startsWith(srvName, '$')) {
+  //       return
+  //     }
+  //     try {
+  //       const srvFunc = require(`../../srv/${srvName}`).deploy
+  //       // 只有服务未就绪，或者开启了force模式时才执行。
+  //       if (!srv.ok || isForce) {
+  //         srvTasks.push(srvFunc(node, { localBase, stateTop, pillarTop, srvName, srv, postTasks }))
+  //       } else {
+  //         // console.log('ignore srv:', srvName)
+  //       }
+  //     } catch (e) {
+  //       console.log(e)
+  //       throw new Error(`请求了未支持的本地服务:${srvName}`)
+  //     }
 }
 
 // async function loadTop (pathfile) {
