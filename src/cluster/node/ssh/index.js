@@ -16,6 +16,7 @@ const Term = require('./term')
 const ostypeMapper = {
   darwin: 'freebsd'
 }
+
 // 根据操作系统类习惯你加载不同的处理库。
 function requireOS (ostype) {
   const type = ostypeMapper[ostype] || ostype
@@ -34,7 +35,7 @@ class SSH extends Base {
   async deployEnv () {
     const that = this
     that.$term = that.$term || await Term.create(this.$envs, that)
-    await require(`./os/${that.$info.os.type.toLowerCase()}`).deployEnv(that)
+    await requireOS(that.$info.os.type).deployEnv(that)
   }
 
   async deployApp () {
@@ -45,10 +46,10 @@ class SSH extends Base {
     const { _ } = that.$env.soa
     const term = that.$term || await Term.create(this.opts, that)
     that.$term = term
-    _.forEach(that._srvs, async (srv, srvName) => {
+    _.forEach(that._srvs, async (srv) => {
       if (!srv.status) {
         srv.status = {}
-        await requireOS(that.$info.os.type.toLowerCase()).fetchSrv(that, srvName, srv)
+        await requireOS(that.$info.os.type).fetchSrv(srv)
       }
     })
     // throw new Error('sal srvStatus 尚未实现')
@@ -68,7 +69,7 @@ class SSH extends Base {
       $info.os = {}
       $info.os.type = s.trim(await term.exec('uname -s'))
       // 如果对应type的fetcher不存在，直接抛出异常。
-      await requireOS($info.os.type.toLowerCase()).fetch(that)
+      await requireOS($info.os.type).fetch(that)
     }
   }
 }

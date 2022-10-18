@@ -18,3 +18,35 @@ module.exports.mirror = async function (driver, { node, term, logfname, s }) {
     await term.exec(`sudo apt-get upgrade 2>&1 | tee -a ${logfname}`).catch(e => false)
   }
 }
+
+const srvNameMap = {
+  postgres: 'postgresql'
+}
+
+module.exports.status = async function (srv) {
+  const { s, _ } = srv.node.$env.soa
+  const srvName = srv.name
+  const term = srv.node.$term
+  const commonName = s.startsWith(srvName, '$') ? s.strRight(srvName, '$') : srvName
+  const usedName = srvNameMap[commonName] || commonName
+
+  let status
+  const statusRes = await term.exec(`systemctl status ${usedName}`).catch(e => {
+    return false
+  })
+  // console.log('statusRes=', statusRes)
+  if (_.isString(statusRes) && /Active: active/.test(statusRes)) {
+    status = true
+  } else {
+    status = false
+  }
+  if (!status) {
+    srv.status.ok = false
+  } else {
+    srv.status.ok = true
+  }
+}
+
+// 为指定节点，安装software规定的软件。
+module.exports.install = async function (node, software) {
+}

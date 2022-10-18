@@ -9,6 +9,8 @@
 // Created On : 13 Oct 2022 By 李竺唐 of 北京飞鹿软件技术研究院
 // File: ubuntu
 
+const debian = require('./debian')
+
 // ubuntu镜像使用清华大学镜像。https://mirror.tuna.tsinghua.edu.cn/help/ubuntu/
 module.exports.mirror = async function ({ node, term, logfname, s }) {
   const isMirror = s.trim(await term.exec('grep "mirrors.tuna.tsinghua.edu.cn" /etc/apt/sources.list').catch(e => false))
@@ -19,3 +21,5 @@ module.exports.mirror = async function ({ node, term, logfname, s }) {
     await term.exec(`sudo apt-get upgrade 2>&1 | tee -a ${logfname}`).catch(e => false)
   }
 }
+
+module.exports.status = debian.status
