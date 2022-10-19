@@ -105,16 +105,11 @@ async function ensurePkg (node, pkgName, pkgVer) {
     const term = node.$term
     const bMirror = node.$env.args.mirror
     const pdetail = pkgDetails[pkgName]
-    if (!pdetail) {
-      // throw error!!
-      console.log('no pkgDetail!!')
-    } else {
-      // 不拦截错误，发生错误抛出异常。
-      await term.exec(`sudo sh -c 'echo "deb ${bMirror ? pdetail.mirrorRepourl : pdetail.repourl} $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/${pdetail.dpgkFile}'`)
-      await term.exec(`sudo wget --quiet -O - ${bMirror ? pdetail.mirrorKeyUrl : pdetail.keyUrl} | sudo apt-key add -`, { pty: true }).catch(e => '')
-      await term.exec(`sudo apt-get update 2>&1 | tee -a ${node.logfname}`)
-      await term.exec(`sudo apt-get -y install postgresql 2>&1 | tee -a ${node.logfname}`)
-    }
+    // 不拦截错误，发生错误抛出异常。如未获取到pkgdetail，也会触发错误。
+    await term.exec(`sudo sh -c 'echo "deb ${bMirror ? pdetail.mirrorRepourl : pdetail.repourl} $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/${pdetail.dpgkFile}'`)
+    await term.exec(`sudo wget --quiet -O - ${bMirror ? pdetail.mirrorKeyUrl : pdetail.keyUrl} | sudo apt-key add -`, { pty: true }).catch(e => '')
+    await term.exec(`sudo apt-get update 2>&1 | tee -a ${node.logfname}`)
+    await term.exec(`sudo apt-get -y install postgresql 2>&1 | tee -a ${node.logfname}`)
     console.log(node.$name, 'to install ', pkgName)
   }
   // console.log(`${pkgName} info=`, info)
