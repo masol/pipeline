@@ -12,14 +12,11 @@
 const SrvFactory = require('./srv')
 const NodeFactory = require('./node')
 
-// const CompSrvs = {
-//   $webass: 'WebUI编译',
-//   $webapi: '服务器编译',
-//   $webmb: '手机版编译',
-//   $webwx: '小程序编译',
-//   $webapp: '应用程序编译',
-//   $webtv: 'TV应用编译'
-// }
+function taskWrapper (taskHandler) {
+  return async function (fullName, srv, taskName) {
+    return await taskHandler(srv, taskName)
+  }
+}
 
 class Cluster {
   #nodes
@@ -29,11 +26,30 @@ class Cluster {
   #dirty // 是否发生了自动分配，从而需要写回原始的节点定义。
   constructor (envs) {
     this.envs = envs
+    /** 这里加入的任务，在deploy时被清空，然后随着部署，调用其中的成员。其成员的结构如下:
+    {
+      afterEnv : false,
+      beforeApp: false,
+      afterApp: false,
+      handler: ('stageName')=>{}
+    } */
+    this.tasks = []
     this.#nodes = {}
     this.#srvDef = {}
     this.#ossDef = null
     this.#dirty = false
     this.#feched = false
+  }
+
+  static #onceTaskCache = {}
+  static async callOnceTask (taskName, srvOrNode, taskHandler) {
+    // srv为节点或srv实例。其获取名称方式不同。
+    const fullName = `${srvOrNode.name || srvOrNode.$name}-${taskName || ''}`
+    const { $ } = srvOrNode.node.$env.soa
+    if (!Cluster.#onceTaskCache[fullName]) {
+      Cluster.#onceTaskCache[fullName] = $.memoize(taskWrapper(taskHandler))
+    }
+    return await Cluster.#onceTaskCache[fullName](fullName, taskName, srvOrNode)
   }
 
   get nodes () {
@@ -50,21 +66,22 @@ class Cluster {
     const { _ } = that.envs.soa
     const util = that.envs.config.util
     const ossNode = _.find(that.#nodes, (n) => n.type === 'oss')
+    const defSrvs = _.clone(SrvFactory.Base.DefSrvs)
     if (!ossNode) {
       // console.log('未发现ossNode,添加cloudserver服务依赖。')
-      SrvFactory.consts.DefSrvs.push(SrvFactory.consts.CloudServer)
+      defSrvs.push(SrvFactory.Base.CloudServer)
     }
 
     // 检查服务定义是否已经设置，如未设置，设置为default.
     // 如果服务未启用，但是节点定义中定义了此服务。安全忽略。
-    for (let i = 0; i < SrvFactory.consts.DefSrvs.length; i++) {
-      const srvName = SrvFactory.consts.DefSrvs[i]
+    for (let i = 0; i < defSrvs.length; i++) {
+      const srvName = defSrvs[i]
       if (!that.#srvDef[srvName] && !util.isDisabled(srvName)) {
         that.#srvDef[srvName] = {}
       }
     }
-    for (let i = 0; i < SrvFactory.consts.KnowSrvs.length; i++) {
-      const srvName = SrvFactory.consts.KnowSrvs[i]
+    for (let i = 0; i < SrvFactory.Base.KnowSrvs.length; i++) {
+      const srvName = SrvFactory.Base.KnowSrvs[i]
       if (!that.#srvDef[srvName] && util.isEnabled(srvName)) {
         that.#srvDef[srvName] = {}
       }
@@ -90,7 +107,7 @@ class Cluster {
 
     // 未定义ossDef.
     if (!that.#ossDef) {
-      const node = _.find(that.#nodes, (n) => n.srv(SrvFactory.consts.CloudServer))
+      const node = _.find(that.#nodes, (n) => n.srv(SrvFactory.Base.CloudServer))
       if (node) {
         that.#ossDef = {
           type: 'local'
@@ -160,15 +177,16 @@ class Cluster {
     if (that.#feched) {
       return
     }
-    const { _, $ } = that.envs.soa
+    const { $ } = that.envs.soa
     const tasks = []
-    _.forEach(that.#nodes, async (node, k) => {
+    for (const nodeName in that.#nodes) {
+      const node = that.#nodes[nodeName]
       if (node.bSSH) {
         tasks.push(node)
       } else {
         await node.fetch()
       }
-    })
+    }
     let animation
     if (tasks.length > 0) {
       const chalkAnimation = (await import('chalk-animation')).default
@@ -187,13 +205,15 @@ class Cluster {
     that.initSrvs()
 
     tasks.length = 0
-    _.forEach(that.#nodes, async (node, k) => {
+    for (const nodeName in that.#nodes) {
+      const node = that.#nodes[nodeName]
       if (node.bSSH) {
         tasks.push(node)
       } else {
         await node.fetchSrv()
       }
-    })
+    }
+
     await $.mapLimit(tasks, limit, (node) => {
       return node.fetchSrv()
     })
@@ -245,13 +265,14 @@ class Cluster {
     // 有需要本地部署的服务，在本地编译任务结束后，需要重新调用compNodes的deployApp.
     const compNodes = []
 
-    // 在节点部署就绪后，执行的任务。
-    const clusterTasks = []
+    // 清空clusterTasks
+    that.tasks = []
 
     // 保存了需要执行任务的节点。
     const tasks = []
-    _.forEach(that.#nodes, async (node) => {
-      // 本地环境不执行本地编译?
+    for (const nodeName in that.#nodes) {
+      const node = that.#nodes[nodeName]
+      // 本地环境不执行本地编译!!
       if (!isDev && node.getCompSrvs(compSrvs)) {
         // 本节点需要本地编译，加入到compNodes.
         compNodes.push(node)
@@ -259,9 +280,9 @@ class Cluster {
       if (node.bSSH) {
         tasks.push(node)
       } else {
-        await node.deployEnv(clusterTasks)
+        await node.deployEnv()
       }
-    })
+    }
 
     if (!isDev) {
       // 本地环境下不执行编译任务。
@@ -277,12 +298,12 @@ class Cluster {
 
     const limit = parseInt(that.envs.args.concurrency) || 5
     await $.mapLimit(tasks, limit, (node) => {
-      return node.deployEnv(clusterTasks)
+      return node.deployEnv()
     })
 
-    await $.mapLimit(tasks, limit, (taskInfo) => {
-      if (taskInfo.afterEnv) {
-        return taskInfo('afterEnv')
+    await $.mapLimit(that.tasks, limit, (taskInfo) => {
+      if (taskInfo.afterEnv && _.isFunction(taskInfo.handler)) {
+        return taskInfo.handler('afterEnv')
       }
     })
 
@@ -293,9 +314,9 @@ class Cluster {
       await that.#compile(needComp)
     }
 
-    await $.mapLimit(tasks, limit, (taskInfo) => {
-      if (taskInfo.afterEnv) {
-        return taskInfo('beforeApp')
+    await $.mapLimit(that.tasks, limit, (taskInfo) => {
+      if (taskInfo.afterEnv && _.isFunction(taskInfo.handler)) {
+        return taskInfo.handler('beforeApp')
       }
     })
 
@@ -303,14 +324,17 @@ class Cluster {
       animation.replace('正在部署$web相关服务,请稍侯...')
     }
     await $.mapLimit(compNodes, limit, (node) => {
-      return node.deployApp(clusterTasks)
+      return node.deployApp()
     })
 
-    await $.mapLimit(tasks, limit, (taskInfo) => {
-      if (taskInfo.afterEnv) {
-        return taskInfo('afterApp')
+    await $.mapLimit(that.tasks, limit, (taskInfo) => {
+      if (taskInfo.afterEnv && _.isFunction(taskInfo.handler)) {
+        return taskInfo.handler('afterApp')
       }
     })
+
+    // 清空clusterTasks
+    that.tasks = []
 
     if (animation) {
       animation.replace('部署完成.')

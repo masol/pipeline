@@ -11,7 +11,10 @@
 
 const debian = require('./debian')
 
-module.exports.mirror = async function (driver, { node, term, logfname, s }) {
+module.exports.mirror = async function (node) {
+  const term = node.$term
+  const { s } = node.$env.soa
+  const logfname = node.logfname
   const isMirror = s.trim(await term.exec('grep "mirrors.aliyun.com" /etc/yum.repos.d/fedora.repo').catch(e => false))
   if (!isMirror) {
     const dateStr = new Date().toJSON().slice(0, 10)
@@ -23,3 +26,15 @@ module.exports.mirror = async function (driver, { node, term, logfname, s }) {
 }
 
 module.exports.status = debian.status
+module.exports.deploy = debian.deploy
+
+/// ////////////////////////////////////////////////////////////////
+// 节点维护函数。
+/// ////////////////////////////////////////////////////////////////
+
+async function ensurePkg (node, pkgName, pkgVer) {
+}
+async function pkgInfo (node, pkgName) {
+}
+module.exports.pkgInfo = pkgInfo
+module.exports.ensurePkg = ensurePkg

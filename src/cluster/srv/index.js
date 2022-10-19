@@ -11,23 +11,24 @@
 
 const Base = require('./base')
 
-// 计算节点上需要忽略的服务。(通过集群的非标部署,例如cluster.$oss来部署$webass)
-const IgnoreSrvs = ['$webass', '$webwx', '$webmb', '$webapp', '$webtv']
-
-const CloudServer = 'cloudserver'
-const Redis = 'redis'
-const DefSrvs = ['postgres', 'redis', 'elastic', '$webapi']
-// 可部署的已知服务
-const KnowSrvs = ['vault', 'keycloak']
+const logger = require('fancy-log')
 
 function create (name, srvDef, node) {
-  return new Base(name, srvDef, node)
+  const { s } = node.$env.soa
+  const clsName = s.strRight(name, ':')
+  try {
+    const Cls = require(`./${clsName}`)
+    return new Cls(name, srvDef, node)
+  } catch (e) {
+    logger.error(`节点${node.$name}需要未支持的服务${name},退化到基础服务，部署可能会发生错误。`)
+    return new Base(name, srvDef, node)
+  }
 }
 
 // 将指定srvDef分配到cluster中(假定这些srv未分配)。
 function alloc (cluster, name, srvDef) {
   const { _ } = cluster.envs.soa
-  if (IgnoreSrvs.indexOf(name) >= 0) { // 忽略忽略节点
+  if (Base.IgnoreSrvs.indexOf(name) >= 0) { // 忽略忽略节点
     return
   }
 
@@ -44,17 +45,17 @@ function alloc (cluster, name, srvDef) {
   const noHopFilter = (n) => n.hop.length === 0
   const noHopNodes = _.filter(nodes, noHopFilter)
   const nodeCount = nodes.length
-  if (name === CloudServer) {
+  if (name === Base.CloudServer) {
     // 寻找一个无hop节点，并部署。
     const nohopSrvOrder = _.sortBy(noHopNodes, (n) => n.srvCount())
     const csNode = nohopSrvOrder.length > 0 ? nohopSrvOrder[0] : null
     if (!csNode) {
-      throw new Error(`无法分配${CloudServer}服务，所有节点不可直连。`)
+      throw new Error(`无法分配${Base.CloudServer}服务，所有节点不可直连。`)
     }
     csNode.addSrv(name, srvDef)
   } else { // 为所有节点添加此服务。
     if (nodeCount <= 5) {
-      if (name === Redis) { // redis只配置两台服务，目前只能是主从。
+      if (name === Base.Redis) { // redis只配置两台服务，目前只能是主从。
         const nodeSrvOrder = _.sortBy(nodes, (n) => n.srvCount())
         let master, slave
         for (let i = 0; i < nodeSrvOrder.length; i++) {
@@ -97,29 +98,6 @@ function alloc (cluster, name, srvDef) {
   }
 }
 
-function taskWrapper (taskHandler) {
-  return async function (fullName, srv, taskName) {
-    return await taskHandler(srv, taskName)
-  }
-}
-
-const onceTaskCache = {}
-// 添加一个每服务全进程只执行一次的task，无论调用多少次,只执行一次。taskHandler的第一个参数为fullname,用于确定任务缓冲。
-async function callOnceTask (taskName, srv, taskHandler) {
-  // srv为节点或srv实例。其获取名称方式不同。
-  const fullName = `${srv.name || srv.$name}-${taskName || ''}`
-  const { $ } = srv.node.$env.soa
-  if (!onceTaskCache[fullName]) {
-    onceTaskCache[fullName] = $.memoize(taskWrapper(taskHandler))
-  }
-  return await onceTaskCache[fullName](fullName, taskName, srv)
-}
-
 module.exports.create = create
 module.exports.alloc = alloc
-module.exports.callOnceTask = callOnceTask
-module.exports.consts = {
-  CloudServer,
-  DefSrvs,
-  KnowSrvs
-}
+module.exports.Base = Base

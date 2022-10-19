@@ -28,6 +28,38 @@ function getByte (s, line) {
   return num
 }
 
+// 将以冒号分割的输出(类似dpkg)解析为json对象。
+function colonSep (s, str, opts = {}) {
+  const lines = s.lines(str)
+  const ret = {
+    unassigned: []
+  }
+  const append = (str1, str2) => {
+    return s.trim(str1) + s.trim(str2)
+  }
+  let lastKey = ''
+  for (const line of lines) {
+    const key = s.trim(s.strLeft(line, ':'))
+    const value = s.trim(s.strRight(line, ':'))
+    if (opts.blankAppend && lastKey && line && line[0] === ' ') {
+      ret[lastKey] = append(ret[lastKey], s.trim(line))
+    }
+    if (value) {
+      ret[key] = s.trim(value)
+      lastKey = key
+    } else {
+      if (!lastKey) {
+        ret.unassigned.push(s.trim(value))
+      } else {
+        ret[lastKey] = append(ret[lastKey], value)
+      }
+      ret[lastKey || 'unassigned'] = append(ret[lastKey || 'unassigned'], value)
+    }
+  }
+  return ret
+}
+
 module.exports = {
-  getByte
+  getByte,
+  colonSep
 }

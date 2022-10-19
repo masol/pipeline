@@ -24,6 +24,12 @@ function requireOS (ostype) {
 }
 
 class SSH extends Base {
+  // 节点维护函数。需要调用对应的issue来执行。
+  async ensurePkg (pkgName, version) {
+    const that = this
+    await requireOS(that.$info.os.type).requireIssue(that).ensurePkg(that, pkgName, version)
+  }
+
   async finish () {
     if (this.$term) {
       const term = this.$term
@@ -32,10 +38,10 @@ class SSH extends Base {
     }
   }
 
-  async deployEnv (clusterTasks) {
+  async deployEnv () {
     const that = this
     that.$term = that.$term || await Term.create(that.$envs, that)
-    await requireOS(that.$info.os.type).deployEnv(that, clusterTasks)
+    await requireOS(that.$info.os.type).deployEnv(that)
   }
 
   async deployApp () {
@@ -43,16 +49,16 @@ class SSH extends Base {
 
   async fetchSrv () {
     const that = this
-    const { _ } = that.$env.soa
     const term = that.$term || await Term.create(this.opts, that)
     that.$term = term
-    _.forEach(that._srvs, async (srv) => {
+    for (const srvName in that._srvs) {
+      const srv = that._srvs[srvName]
       if (!srv.status) {
         srv.status = {}
         await requireOS(that.$info.os.type).fetchSrv(srv)
       }
-    })
-    // throw new Error('sal srvStatus 尚未实现')
+    }
+    // throw new Error('salt srvStatus 尚未实现')
   }
 
   async fetch () {

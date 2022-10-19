@@ -9,8 +9,13 @@
 // Created On : 13 Oct 2022 By 李竺唐 of 北京飞鹿软件技术研究院
 // File: debian
 
+const utils = require('../../utils')
+
 // debian镜像使用腾讯云,支持http协议，无需执行 apt-get install apt-transport-https
-module.exports.mirror = async function (driver, { node, term, logfname, s }) {
+module.exports.mirror = async function (node) {
+  const term = node.$term
+  const { s } = node.$env.soa
+  const logfname = node.logfname
   const isMirror = s.trim(await term.exec('grep "mirrors.cloud.tencent.com" /etc/apt/sources.list').catch(e => false))
   if (!isMirror) {
     await term.exec('sudo sed -i \'s#http://deb.debian.org#http://mirrors.cloud.tencent.com#g\' /etc/apt/sources.list').catch(e => false)
@@ -19,8 +24,12 @@ module.exports.mirror = async function (driver, { node, term, logfname, s }) {
   }
 }
 
+/// 将内部服务映射为issue指定的服务名称。
 const srvNameMap = {
   postgres: 'postgresql'
+}
+function getSrvname (srvName) {
+  return srvNameMap[srvName] || srvName
 }
 
 module.exports.status = async function (srv) {
@@ -28,7 +37,7 @@ module.exports.status = async function (srv) {
   const srvName = srv.name
   const term = srv.node.$term
   const commonName = s.startsWith(srvName, '$') ? s.strRight(srvName, '$') : srvName
-  const usedName = srvNameMap[commonName] || commonName
+  const usedName = getSrvname(commonName)
 
   let status
   const statusRes = await term.exec(`systemctl status ${usedName}`).catch(e => {
@@ -47,6 +56,74 @@ module.exports.status = async function (srv) {
   }
 }
 
+async function pkgInfo (node, pkgName) {
+  pkgName = getSrvname(pkgName)
+  const term = node.$term
+  const { _, s } = node.$env.soa
+  const result = await term.exec(`dpkg -s ${pkgName}`).catch(e => {
+    return {
+      ok: false,
+      msg: String(e)
+    }
+  })
+  let ret
+  if (_.isObject(result)) {
+    ret = utils.colonSep(s, result.msg, { blankAppend: true })
+    ret.ok = false
+  } else {
+    ret = utils.colonSep(s, result, { blankAppend: true })
+    ret.ok = true
+  }
+  // console.log('ret=', ret)
+  return ret
+}
+
+// 本issue下关于pkg维护的信息。默认采用腾讯云镜像，可自行换用清华，阿里等镜像。
+const pkgDetails = {
+  postgres: {
+    repo: true,
+    mirrorRepourl: 'https://mirrors.cloud.tencent.com/postgresql/repos/apt/',
+    repourl: 'http://apt.postgresql.org/pub/repos/apt',
+    dpgkFile: 'pgdg.list',
+    mirrorKeyUrl: 'https://mirrors.cloud.tencent.com/postgresql/repos/apt/ACCC4CF8.asc',
+    keyUrl: 'https://www.postgresql.org/media/keys/ACCC4CF8.asc'
+  }
+}
 // 为指定节点，安装software规定的软件。
-module.exports.install = async function (node, software) {
+async function ensurePkg (node, pkgName, pkgVer) {
+  const info = await pkgInfo(node, pkgName)
+  let install = true
+  if (info.ok) {
+    if (!pkgVer || pkgVer !== info.Version) {
+      // 版本相符，无需重新安装。未指定版本号也不重新安装。
+      // console.log('not install ', pkgName, pkgVer)
+      install = false
+    }
+  }
+  if (install) {
+    // 添加源。
+    const term = node.$term
+    const bMirror = node.$env.args.mirror
+    const pdetail = pkgDetails[pkgName]
+    if (!pdetail) {
+      // throw error!!
+      console.log('no pkgDetail!!')
+    } else {
+      // 不拦截错误，发生错误抛出异常。
+      await term.exec(`sudo sh -c 'echo "deb ${bMirror ? pdetail.mirrorRepourl : pdetail.repourl} $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/${pdetail.dpgkFile}'`)
+      await term.exec(`sudo wget --quiet -O - ${bMirror ? pdetail.mirrorKeyUrl : pdetail.keyUrl} | sudo apt-key add -`, { pty: true }).catch(e => '')
+      await term.exec(`sudo apt-get update 2>&1 | tee -a ${node.logfname}`)
+      await term.exec(`sudo apt-get -y install postgresql 2>&1 | tee -a ${node.logfname}`)
+    }
+    console.log(node.$name, 'to install ', pkgName)
+  }
+  // console.log(`${pkgName} info=`, info)
+}
+module.exports.pkgInfo = pkgInfo
+module.exports.ensurePkg = ensurePkg
+
+// 为指定节点安装service.
+module.exports.deploy = async function (srv) {
+  return await srv.deploy(this)
+  // const { clusterTasks, bForce, bMirror, logfname } = ctx
 }

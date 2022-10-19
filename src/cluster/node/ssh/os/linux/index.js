@@ -25,6 +25,8 @@ function requireIssue (node) {
   return require(`./${issueMapper[issue] || issue}`)
 }
 
+module.exports.requireIssue = requireIssue
+
 /// 获取Linux下的系统信息。此时不能分遣到issue,因为本函数中才能获取到issue.
 module.exports.fetch = async function (node) {
   const $info = node.$info
@@ -87,33 +89,32 @@ module.exports.fetchSrv = async function (srv) {
 /// 按照报告，stacksalt中的地址大量不可用，支持mirror需要大量改写，而mirror是必须支持的，否则中国区不可用。
 /// 因此废弃stacksalt-formula维护方式，直接使用ssh。在mirror开启后，访问大陆区镜像。
 // clusterTasks的值为{'stageName': true,task: handler} 其中stageName为: afterEnv,beforeApp,afterApp
-module.exports.deployEnv = async function (node, clusterTasks) {
+// clusterTask修改为cluster的成员，自行修改。
+module.exports.deployEnv = async function (node) {
   const { s } = node.$env.soa
-  const term = node.$term
-  const logfname = `~/install-${new Date().toJSON().slice(0, 10)}.log`
   const reqMirror = node.$env.args.mirror
   if (reqMirror) {
     // 检查并修改服务器的mirror设置。
-    await requireIssue(node).mirror({ logfname, node, term, s })
+    await requireIssue(node).mirror(node)
     // console.log('node=', node)
   }
-  //   _.forEach(node._srvs, (srv, srvName) => {
-  //     // 忽略以$开头的服务。
-  //     if (s.startsWith(srvName, '$')) {
-  //       return
-  //     }
-  //     try {
-  //       const srvFunc = require(`../../srv/${srvName}`).deploy
-  //       // 只有服务未就绪，或者开启了force模式时才执行。
-  //       if (!srv.ok || isForce) {
-  //         srvTasks.push(srvFunc(node, { localBase, stateTop, pillarTop, srvName, srv, postTasks }))
-  //       } else {
-  //         // console.log('ignore srv:', srvName)
-  //       }
-  //     } catch (e) {
-  //       console.log(e)
-  //       throw new Error(`请求了未支持的本地服务:${srvName}`)
-  //     }
+
+  const bForce = node.$env.args.force
+
+  // 服务的安装与维护需要串行，防止term上下文依赖。
+  for (const srvName in node._srvs) {
+    const srv = node._srvs[srvName]
+    if (s.startsWith(srvName, '$')) {
+      continue
+    }
+    // 只有服务未就绪，或者开启了force模式时才执行。
+    if (!srv.ok || bForce) {
+      const issue = requireIssue(node)
+      await issue.deploy(srv).catch(e => {
+        throw new Error(`请求部署服务${srvName}时发生错误:${e}`)
+      })
+    }
+  }
 }
 
 // async function loadTop (pathfile) {

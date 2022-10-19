@@ -20,12 +20,18 @@ class Base {
   #name
   #cluster
   #nodeDef
+  #logfname
   constructor (name, nodeDef, cluster) {
+    this.#logfname = `~/install-${new Date().toJSON().slice(0, 10)}.log`
     this.#name = name
     this.#cluster = cluster
     this.#nodeDef = nodeDef || {}
     this._srvs = {}
     // console.log('in Node Constructor nodeDef=', nodeDef)
+  }
+
+  get logfname () {
+    return this.#logfname
   }
 
   // 将需要本地编译的服务加入result中。返回true表示有本地编译任务，否则返回false.

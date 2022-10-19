@@ -12,7 +12,10 @@
 const debian = require('./debian')
 
 // ubuntu镜像使用清华大学镜像。https://mirror.tuna.tsinghua.edu.cn/help/ubuntu/
-module.exports.mirror = async function ({ node, term, logfname, s }) {
+module.exports.mirror = async function (node) {
+  const term = node.$term
+  const { s } = node.$env.soa
+  const logfname = node.logfname
   const isMirror = s.trim(await term.exec('grep "mirrors.tuna.tsinghua.edu.cn" /etc/apt/sources.list').catch(e => false))
   if (!isMirror) {
     await term.exec('sudo sed -i "s@http://.*archive.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list').catch(e => false)
@@ -23,3 +26,4 @@ module.exports.mirror = async function ({ node, term, logfname, s }) {
 }
 
 module.exports.status = debian.status
+module.exports.deploy = debian.deploy
