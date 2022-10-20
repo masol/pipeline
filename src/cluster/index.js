@@ -60,7 +60,20 @@ class Cluster {
     return this.#srvDef[name]
   }
 
-  /// 到Cluster获取完基础信息，获取服务状态前，才调用initSrvs,展开全部服务。因此$service属性位置不关键。并且可以访问节点信息。
+  /// @TODO: 未来支持更灵活的条件查询，方便srv来查找关联node.
+  /// 寻找配置srvName的节点集合。返回数组，包含了满足条件的节点。
+  nodesBySrv (srvName) {
+    const ret = []
+    for (const nodeName in this.#nodes) {
+      const node = this.#nodes[nodeName]
+      if (node._srvs[srvName]) {
+        ret.push(node)
+      }
+    }
+    return ret
+  }
+
+  /// 到Cluster获取完基础信息，获取服务状态前，才调用initSrvs,展开全部服务。因此定义文件中，$service属性位置不关键。并且可以访问节点信息。
   initSrvs () {
     const that = this
     const { _ } = that.envs.soa

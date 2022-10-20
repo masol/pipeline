@@ -115,9 +115,19 @@ async function ensurePkg (node, pkgName, pkgVer) {
       })
       await term.exec('sudo /usr/pgsql-15/bin/postgresql-15-setup initdb')
       await term.pvexec('sudo systemctl enable postgresql-15')
+      if (pkgName === 'postgres') { // 为postgresql额外配置，无条件开放端口，交由防火墙防护。
+        let pathFile = await term.exec('ls /var/lib/pgsql/15/data/postgresql.conf').catch(e => '')
+        if (!pathFile) {
+          pathFile = await term.exec('ls /var/lib/pgsql/14/data/postgresql.conf').catch(e => '')
+        }
+        if (!pathFile) {
+          throw new Error('无法定位postgres的配置文件')
+        }
+        await term.exec(`sudo echo "listen_addresses = '*'" >> ${pathFile}`)
+      }
       await term.pvexec('sudo systemctl start postgresql-15')
     }
-    console.log(node.$name, 'to install ', pkgName)
+    console.log(node.$name, 'install ', pkgName, 'finished!!')
   }
   // console.log(`${pkgName} info=`, info)
 }

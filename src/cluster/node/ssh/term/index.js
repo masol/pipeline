@@ -140,7 +140,9 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
           out.shift()
         }
       }
+      // console.log('test line=', line)
       if (testExpectation(line, procInfo.exp)) {
+        // console.log('test ok!!!')
         let task
         if (_.isFunction(procInfo.action)) {
           task = procInfo.action(socket, line)
@@ -170,6 +172,7 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
         await currTask
         currTask = evalContext(line)
       }
+      bProc = false
     }
     if (_.isFunction(expect.start)) {
       currTask = expect.start(socket)

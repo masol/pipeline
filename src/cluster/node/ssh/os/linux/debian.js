@@ -38,10 +38,10 @@ module.exports.status = async function (srv, srvnameFunc) {
   const term = srv.node.$term
   const commonName = s.startsWith(srvName, '$') ? s.strRight(srvName, '$') : srvName
   srvnameFunc = srvnameFunc || getSrvname
-  const usedName = srvnameFunc(commonName)
+  const sysctlName = srvnameFunc(commonName)
 
   let status
-  const statusRes = await term.exec(`systemctl status ${usedName}`).catch(e => {
+  const statusRes = await term.exec(`systemctl status ${sysctlName}`).catch(e => {
     return false
   })
   // console.log('statusRes=', statusRes)
@@ -104,18 +104,67 @@ async function ensurePkg (node, pkgName, pkgVer) {
   if (install) {
     // 添加源。
     const term = node.$term
+    const { s } = node.$env.soa
     const bMirror = node.$env.args.mirror
     const pdetail = pkgDetails[pkgName]
+    const commonName = s.startsWith(pkgName, '$') ? s.strRight(pkgName, '$') : pkgName
+    const sysctlName = getSrvname(commonName)
+
+    if (pdetail.repo) {
     // 不拦截错误，发生错误抛出异常。如未获取到pkgdetail，也会触发错误。
-    await term.exec(`sudo sh -c 'echo "deb ${bMirror ? pdetail.mirrorRepourl : pdetail.repourl} $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/${pdetail.dpgkFile}'`)
-    await term.pvexec(`sudo wget --quiet -O - ${bMirror ? pdetail.mirrorKeyUrl : pdetail.keyUrl} | sudo apt-key add -`)
-    await term.exec(`sudo apt-get -y install apt-transport-https 2>&1 | tee -a ${node.logfname}`)
-    await term.exec(`sudo apt-get -y update 2>&1 | tee -a ${node.logfname}`)
-    await term.exec(`sudo apt-get -y install postgresql 2>&1 | tee -a ${node.logfname}`)
-    await term.exec('sudo systemctl start postgresql')
-    console.log(node.$name, 'install ', pkgName, 'finished!')
+      await term.exec(`sudo sh -c 'echo "deb ${bMirror ? pdetail.mirrorRepourl : pdetail.repourl} $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/${pdetail.dpgkFile}'`)
+      await term.pvexec(`sudo wget --quiet -O - ${bMirror ? pdetail.mirrorKeyUrl : pdetail.keyUrl} | sudo apt-key add -`)
+      await term.exec(`sudo apt-get -y install apt-transport-https 2>&1 | tee -a ${node.logfname}`)
+      await term.exec(`sudo apt-get -y update 2>&1 | tee -a ${node.logfname}`)
+      await term.exec(`sudo apt-get -y install ${sysctlName} 2>&1 | tee -a ${node.logfname}`)
+      if (pkgName === 'postgres') { // 为postgresql额外配置，无条件开放端口，交由防火墙防护。
+        let pathFile = await term.exec('ls /etc/postgresql/15/main/postgresql.conf').catch(e => '')
+        if (!pathFile) {
+          pathFile = await term.exec('ls /etc/postgresql/14/main/postgresql.conf').catch(e => '')
+        }
+        if (!pathFile) {
+          throw new Error('无法定位postgres的配置文件')
+        }
+        await term.exec(`sudo echo "listen_addresses = '*'" >> ${pathFile}`)
+      }
+      await term.exec(`sudo systemctl start ${sysctlName}`)
+      console.log(node.$name, 'install ', pkgName, 'finished!')
+    }
   }
   // console.log(`${pkgName} info=`, info)
 }
+
+async function port (node, method, number) {
+// 首先确保ufw安装完毕。
+  const term = node.$term
+  const hasUfw = await term.exec('which ufw').catch(e => '')
+  if (!hasUfw) {
+    await term.exec(`sudo apt-get -y install ufw 2>&1 | tee -a ${node.logfname}`)
+    await term.exec('sudo ufw allow OpenSSH')
+    await term.exec('sudo ufw default allow outgoing')
+    await term.exec('sudo ufw default deny incoming')
+    await term.pvexec('sudo ufw enable\ny', {
+      out: [{
+        method: 'wait',
+        exp: 'Proceed with operation (y|n)',
+        action: (socket) => {
+          console.log('found proceed with operation!!')
+          socket.stdin.write('exit\n')
+        }
+      }]
+    })
+  }
+  const cmdStr = (method === 'open') ? 'allow' : 'deny'
+  const { _ } = node.$env.soa
+  if (_.isArray(number)) {
+    for (const num of number) {
+      await term.exec(`sudo ufw ${cmdStr} ${num}`)
+    }
+  } else {
+    await term.exec(`sudo ufw ${cmdStr} ${number}`)
+  }
+  await term.exec('sudo ufw reload')
+}
 module.exports.pkgInfo = pkgInfo
 module.exports.ensurePkg = ensurePkg
+module.exports.port = port

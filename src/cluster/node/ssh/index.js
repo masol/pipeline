@@ -30,6 +30,11 @@ class SSH extends Base {
     await requireOS(that.$info.os.type).requireIssue(that).ensurePkg(that, pkgName, version)
   }
 
+  async port (method, number) {
+    const that = this
+    await requireOS(that.$info.os.type).requireIssue(that).port(that, method, number)
+  }
+
   async finish () {
     if (this.$term) {
       const term = this.$term
