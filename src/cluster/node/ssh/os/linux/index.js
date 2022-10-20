@@ -86,37 +86,6 @@ module.exports.fetchSrv = async function (srv) {
   return await requireIssue(srv.node).status(srv)
 }
 
-/// 按照报告，stacksalt中的地址大量不可用，支持mirror需要大量改写，而mirror是必须支持的，否则中国区不可用。
-/// 因此废弃stacksalt-formula维护方式，直接使用ssh。在mirror开启后，访问大陆区镜像。
-// clusterTasks的值为{'stageName': true,task: handler} 其中stageName为: afterEnv,beforeApp,afterApp
-// clusterTask修改为cluster的成员，自行修改。
-module.exports.deployEnv = async function (node) {
-  const { s } = node.$env.soa
-  const reqMirror = node.$env.args.mirror
-  if (reqMirror) {
-    // 检查并修改服务器的mirror设置。
-    await requireIssue(node).mirror(node)
-    // console.log('node=', node)
-  }
-
-  const bForce = node.$env.args.force
-
-  // 服务的安装与维护需要串行，防止term上下文依赖。
-  for (const srvName in node._srvs) {
-    const srv = node._srvs[srvName]
-    if (s.startsWith(srvName, '$')) {
-      continue
-    }
-    // 只有服务未就绪，或者开启了force模式时才执行。
-    if (!srv.ok || bForce) {
-      const issue = requireIssue(node)
-      await issue.deploy(srv).catch(e => {
-        throw new Error(`请求部署服务${srvName}时发生错误:${e}`)
-      })
-    }
-  }
-}
-
 // async function loadTop (pathfile) {
 //   const fileContent = await fs.readFile(pathfile, 'utf-8').catch((e) => '')
 //   const top = fileContent

@@ -79,7 +79,7 @@ class Base {
     _.forEach(this.#nodeDef.services, (value) => {
       let def, name
       if (_.isString(value)) {
-        def = that.cluster().srvDef(value)
+        def = that.$cluster.srvDef(value)
         name = def.name || value
       } else if (_.isObject(value)) {
         def = value

@@ -26,4 +26,5 @@ module.exports.mirror = async function (node) {
 }
 
 module.exports.status = debian.status
-module.exports.deploy = debian.deploy
+module.exports.pkgInfo = debian.pkgInfo
+module.exports.ensurePkg = debian.ensurePkg

@@ -19,8 +19,8 @@ module.exports.mirror = async function (node) {
   const isMirror = s.trim(await term.exec('grep "mirrors.cloud.tencent.com" /etc/apt/sources.list').catch(e => false))
   if (!isMirror) {
     await term.exec('sudo sed -i \'s#http://deb.debian.org#http://mirrors.cloud.tencent.com#g\' /etc/apt/sources.list').catch(e => false)
-    await term.exec(`sudo apt-get update 2>&1 | tee -a ${logfname}`).catch(e => false)
-    await term.exec(`sudo apt-get upgrade 2>&1 | tee -a ${logfname}`).catch(e => false)
+    await term.exec(`sudo apt-get -y update 2>&1 | tee -a ${logfname}`).catch(e => false)
+    await term.exec(`sudo apt-get -y upgrade 2>&1 | tee -a ${logfname}`).catch(e => false)
   }
 }
 
@@ -32,12 +32,13 @@ function getSrvname (srvName) {
   return srvNameMap[srvName] || srvName
 }
 
-module.exports.status = async function (srv) {
+module.exports.status = async function (srv, srvnameFunc) {
   const { s, _ } = srv.node.$env.soa
   const srvName = srv.name
   const term = srv.node.$term
   const commonName = s.startsWith(srvName, '$') ? s.strRight(srvName, '$') : srvName
-  const usedName = getSrvname(commonName)
+  srvnameFunc = srvnameFunc || getSrvname
+  const usedName = srvnameFunc(commonName)
 
   let status
   const statusRes = await term.exec(`systemctl status ${usedName}`).catch(e => {
@@ -107,18 +108,14 @@ async function ensurePkg (node, pkgName, pkgVer) {
     const pdetail = pkgDetails[pkgName]
     // 不拦截错误，发生错误抛出异常。如未获取到pkgdetail，也会触发错误。
     await term.exec(`sudo sh -c 'echo "deb ${bMirror ? pdetail.mirrorRepourl : pdetail.repourl} $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/${pdetail.dpgkFile}'`)
-    await term.exec(`sudo wget --quiet -O - ${bMirror ? pdetail.mirrorKeyUrl : pdetail.keyUrl} | sudo apt-key add -`, { pty: true }).catch(e => '')
-    await term.exec(`sudo apt-get update 2>&1 | tee -a ${node.logfname}`)
+    await term.pvexec(`sudo wget --quiet -O - ${bMirror ? pdetail.mirrorKeyUrl : pdetail.keyUrl} | sudo apt-key add -`)
+    await term.exec(`sudo apt-get -y install apt-transport-https 2>&1 | tee -a ${node.logfname}`)
+    await term.exec(`sudo apt-get -y update 2>&1 | tee -a ${node.logfname}`)
     await term.exec(`sudo apt-get -y install postgresql 2>&1 | tee -a ${node.logfname}`)
-    console.log(node.$name, 'to install ', pkgName)
+    await term.exec('sudo systemctl start postgresql')
+    console.log(node.$name, 'install ', pkgName, 'finished!')
   }
   // console.log(`${pkgName} info=`, info)
 }
 module.exports.pkgInfo = pkgInfo
 module.exports.ensurePkg = ensurePkg
-
-// 为指定节点安装service.
-module.exports.deploy = async function (srv) {
-  return await srv.deploy(this)
-  // const { clusterTasks, bForce, bMirror, logfname } = ctx
-}

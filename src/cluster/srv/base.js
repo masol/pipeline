@@ -115,10 +115,10 @@ class Base {
     const { _ } = that.node.$env.soa
     const srvNodes = that.srvNodes()
     // 先将srv对应的节点加入。
-    if (that.srvDef.type === 'master') {
-      that.#masters.push(that.node)
-    } else {
+    if (that.srvDef.type === 'slave') {
       that.#slaves.push(that.node)
+    } else { // 没有定义或定义为master都意味这master模式。
+      that.#masters.push(that.node)
     }
 
     if (srvNodes.length === 0) { // 单机模式。
@@ -136,7 +136,7 @@ class Base {
     }
   }
 
-  async deploy (issue) {
+  async deploy () {
     this.#init()
   }
 

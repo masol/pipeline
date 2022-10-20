@@ -11,9 +11,12 @@
 const Base = require('./base')
 
 class Postgres extends Base {
-  async deploy (issue, ctx) {
+  async deploy () {
     const that = this
-    await super.deploy(issue, ctx)
+    await super.deploy()
+    if (!that.isSingle()) {
+      throw new Error('集群模式PG部署，尚未实现。')
+    }
     console.log('deploy postgresql')
     await that.node.ensurePkg(that.name)
   }

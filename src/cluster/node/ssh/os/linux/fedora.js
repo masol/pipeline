@@ -11,6 +11,14 @@
 
 const debian = require('./debian')
 
+/// 将内部服务映射为issue指定的服务名称。
+const srvNameMap = {
+  postgres: 'postgresql-15'
+}
+function getSrvname (srvName) {
+  return srvNameMap[srvName] || srvName
+}
+
 module.exports.mirror = async function (node) {
   const term = node.$term
   const { s } = node.$env.soa
@@ -25,16 +33,93 @@ module.exports.mirror = async function (node) {
   }
 }
 
-module.exports.status = debian.status
-module.exports.deploy = debian.deploy
+module.exports.status = async function (srv, srvnameFunc) {
+  return await debian.status(srv, getSrvname)
+}
 
 /// ////////////////////////////////////////////////////////////////
 // 节点维护函数。
 /// ////////////////////////////////////////////////////////////////
 
-async function ensurePkg (node, pkgName, pkgVer) {
-}
 async function pkgInfo (node, pkgName) {
+  pkgName = getSrvname(pkgName)
+  const term = node.$term
+  const { s } = node.$env.soa
+  const result = s.trim(await term.exec(`sudo yum list --installed | grep ${pkgName}`).catch(e => {
+    return ''
+  }))
+  console.log('yum result=', JSON.stringify(result))
+  const ret = {
+    ok: !!result
+  }
+  // @FIXME: fetch version.
+  return ret
+}
+
+// 本issue下关于pkg维护的信息。默认采用腾讯云镜像，可自行换用清华，阿里等镜像。
+const pkgDetails = {
+  postgres: {
+    dnf: true,
+    mirrorRepourl: (node) => {
+      if (parseInt(node.$info.os.release) >= 35) {
+        return `https://mirrors.cloud.tencent.com/postgresql/repos/yum/reporpms/F-${node.$info.os.release}-x86_64/pgdg-fedora-repo-latest.noarch.rpm`
+      }
+      return 'https://mirrors.cloud.tencent.com/postgresql/repos/yum/reporpms/EL-9-x86_64/pgdg-fedora-repo-latest.noarch.rpm'
+    },
+    repourl: 'https://download.postgresql.org/pub/repos/yum/reporpms/F-36-x86_64/pgdg-fedora-repo-latest.noarch.rpm',
+    pkgName: 'postgresql15-server'
+  }
+}
+async function ensurePkg (node, pkgName, pkgVer) {
+  const { _ } = node.$env.soa
+  const info = await pkgInfo(node, pkgName)
+  let install = true
+  console.log('fedora info=', info)
+  if (info.ok) {
+    if (!pkgVer || pkgVer !== info.Version) {
+      // 版本相符，无需重新安装。未指定版本号也不重新安装。
+      // console.log('not install ', pkgName, pkgVer)
+      install = false
+    }
+  }
+  if (install) {
+    // 添加源。
+    const term = node.$term
+    const bMirror = node.$env.args.mirror
+    console.log('bMirror=', bMirror)
+    const pdetail = pkgDetails[pkgName]
+    // 不拦截错误，发生错误抛出异常。如未获取到pkgdetail，也会触发错误。
+    if (pdetail.dnf) {
+      let repoUrl = pdetail.repourl
+      if (bMirror) {
+        if (_.isString(pdetail.mirrorRepourl)) {
+          repoUrl = pdetail.mirrorRepourl
+        } else if (_.isFunction(pdetail.mirrorRepourl)) {
+          repoUrl = pdetail.mirrorRepourl(node)
+        } else {
+          throw new Error('镜像地址类型错误！！')
+        }
+      }
+      await term.exec(`sudo dnf install -y ${repoUrl}`)
+      // 修改镜像文件。使得其下载地址从镜像开始。
+      await term.exec(`sudo wget -O /etc/yum.repos.d/pgdg-fedora-all.repo https://libs.wware.org/pvpipeline/fedora/pgdg-fedora-all.repo  2>&1 | tee -a ${node.logfname}`)
+      await term.pvexec(`sudo dnf install -y ${pdetail.pkgName} 2>&1 | tee -a ${node.logfname}`, {
+        out: [{
+          mode: 'wait',
+          exp: 'Is this ok [y/N]:',
+          action: async (socket, line) => {
+            console.log('enter y socket', line)
+            await socket.write('y\n')
+          }
+        }]
+      })
+      await term.exec('sudo /usr/pgsql-15/bin/postgresql-15-setup initdb')
+      await term.pvexec('sudo systemctl enable postgresql-15')
+      await term.pvexec('sudo systemctl start postgresql-15')
+    }
+    console.log(node.$name, 'to install ', pkgName)
+  }
+  // console.log(`${pkgName} info=`, info)
 }
 module.exports.pkgInfo = pkgInfo
 module.exports.ensurePkg = ensurePkg
