@@ -84,17 +84,19 @@ function pvftp (term, envOpts) {
   opts: {
     stripColors: true,
     trim: true, //将每行trim,空行不再执行期望检查。
+    debug: false, //如果debug打开，会在console中打印处理的每行及匹配情况。
+    autoExit: true, //自动在cmdline后追加'\nexit'以退出shell，设置为false,需要自行退出。
     strict: false //严格模式，所有的输出都必须被匹配处理，否则抛出错误。
   }
 }
    */
 async function procExpect (socket, expect = {}, envOpts, cmdline) {
   const { _, s, $ } = envOpts.soa
-  const opts = expect.opts || {
-    stripColors: true,
-    trim: true,
-    strict: false
-  }
+  const opts = expect.opts || { }
+  if (_.isUndefined(opts.stripColors)) opts.stripColors = true
+  if (_.isUndefined(opts.autoExit)) opts.autoExit = true
+  if (_.isUndefined(opts.trim)) opts.trim = true
+
   const out = _.clone(expect.out) || []
   return new Promise((resolve, reject) => {
     // 当前执行的task,以支持异步回调。
@@ -129,6 +131,7 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
         return
       }
       const procInfo = out[0]
+      // console.log('procInfo=', procInfo)
       const procActionRet = (task) => {
         if ($.isPromise(task)) {
           return Promise.resolve(task).then((result) => {
@@ -143,6 +146,9 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
       // console.log('test line=', line)
       if (testExpectation(line, procInfo.exp)) {
         // console.log('test ok!!!')
+        if (opts.debug) {
+          console.log('行内容被匹配,处理器信息:', procInfo)
+        }
         let task
         if (_.isFunction(procInfo.action)) {
           task = procInfo.action(socket, line)
@@ -151,7 +157,7 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
       } else {
         if (procInfo.mode === 'expect') {
           if (_.isFunction(procInfo.err)) {
-            procActionRet(procInfo.err(socket, line))
+            return procActionRet(procInfo.err(socket, line))
           } else {
             reject(new Error('无法匹配Expect。'))
           }
@@ -170,6 +176,9 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
           continue
         }
         await currTask
+        if (opts.debug) {
+          console.log('检查行:', line)
+        }
         currTask = evalContext(line)
       }
       bProc = false
@@ -202,7 +211,8 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
         resolve(result)
       })
     })
-    socket.write(cmdline + '\nexit\n')
+    // console.log('procexpect cmdline=', cmdline + '\n' + (opts.autoExit ? '\nexit\n' : ''))
+    socket.write(cmdline + '\n' + (opts.autoExit ? 'exit\n' : ''))
   })
 }
 

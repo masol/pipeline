@@ -149,7 +149,7 @@ async function port (node, method, number) {
         exp: 'Proceed with operation (y|n)',
         action: (socket) => {
           console.log('found proceed with operation!!')
-          socket.stdin.write('exit\n')
+          return socket.stdin.write('exit\n')
         }
       }]
     })

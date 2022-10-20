@@ -78,7 +78,7 @@ class Base {
     if (!Base.#ensurePwd) {
       const envs = node.$env
       const { $, _ } = envs.soa
-      Base.#ensurePwd = $.memoize(_.bind(ensurePwd, envs))
+      Base.#ensurePwd = $.memoize(_.bind(ensurePwd, null, envs))
     }
     if (!Base.#ensureZip) {
       const envs = node.$env

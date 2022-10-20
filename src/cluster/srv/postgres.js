@@ -13,6 +13,7 @@ const Base = require('./base')
 class Postgres extends Base {
   async deploy () {
     const that = this
+    const cfgutil = that.node.$env.config.util
     await super.deploy()
     if (!that.isSingle()) {
       throw new Error('集群模式PG部署，尚未实现。')
@@ -26,6 +27,63 @@ class Postgres extends Base {
     console.log('deploy postgresql')
     await that.node.ensurePkg(that.name)
     // 开始执行psql来配置用户信息。这与发行版无关。
+    // console.log('that.node.$env.args.target=', that.node.$env.args.target)
+    const passwd = await Base.ensurePwd(cfgutil.path('config', that.node.$env.args.target, 'postgres', 'app.passwd'))
+    console.log('app passwd=', passwd)
+    const term = that.node.$term
+    await term.pvexec('sudo su - postgres', {
+      err: (err) => {
+        // 先忽略错误。
+        console.log('err occupy:', err)
+      },
+      out: [{
+        mode: 'wait',
+        exp: 'postgres@',
+        test: 1,
+        action: (socket) => {
+          return socket.stdin.write('createdb app\n')
+        }
+      }, {
+        mode: 'wait',
+        exp: 'postgres@',
+        test: 2,
+        action: (socket) => {
+          return socket.stdin.write('createuser app -P\n')
+        }
+      }, {
+        mode: 'wait',
+        exp: 'Enter password for new role',
+        test: 3,
+        action: (socket) => {
+          return socket.stdin.write(`${passwd}\n`)
+        }
+      }, {
+        mode: 'expect',
+        exp: 'Enter it again',
+        test: 4,
+        action: (socket) => {
+          return socket.stdin.write(`${passwd}\n`)
+        }
+      }, {
+        mode: 'wait',
+        exp: 'postgres@',
+        test: 6,
+        action: (socket) => {
+          return socket.stdin.write('psql -c "GRANT ALL PRIVILEGES ON DATABASE app TO app;"\n')
+        }
+      }, {
+        mode: 'wait',
+        exp: 'postgres@',
+        test: 7,
+        action: (socket) => {
+          return socket.stdin.write('exit\nexit\n')
+        }
+      }],
+      opts: {
+        autoExit: false,
+        debug: true
+      }
+    })
   }
 }
 
