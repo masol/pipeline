@@ -24,9 +24,10 @@ module.exports.mirror = async function (node) {
   }
 }
 
-/// 将内部服务映射为issue指定的服务名称。
+/// 将标准服务映射为issue指定的服务名称。
 const srvNameMap = {
-  postgres: 'postgresql'
+  postgres: 'postgresql',
+  redis: 'redis-server'
 }
 function getSrvname (srvName) {
   return srvNameMap[srvName] || srvName
@@ -57,6 +58,16 @@ module.exports.status = async function (srv, srvnameFunc) {
   }
 }
 
+async function startSrv (srv, srvnameFunc) {
+  const { s } = srv.node.$env.soa
+  const srvName = srv.name
+  const term = srv.node.$term
+  const commonName = s.startsWith(srvName, '$') ? s.strRight(srvName, '$') : srvName
+  srvnameFunc = srvnameFunc || getSrvname
+  const sysctlName = srvnameFunc(commonName)
+  await term.exec(`sudo systemctl restart ${sysctlName} 2>&1 | tee -a ${srv.node.logfname}`)
+}
+
 async function pkgInfo (node, pkgName) {
   pkgName = getSrvname(pkgName)
   const term = node.$term
@@ -73,7 +84,7 @@ async function pkgInfo (node, pkgName) {
     ret.ok = false
   } else {
     ret = utils.colonSep(s, result, { blankAppend: true })
-    ret.ok = true
+    ret.ok = ret.Status && (ret.Status.indexOf('installed') >= 0)
   }
   // console.log('ret=', ret)
   return ret
@@ -82,7 +93,7 @@ async function pkgInfo (node, pkgName) {
 // 本issue下关于pkg维护的信息。默认采用腾讯云镜像，可自行换用清华，阿里等镜像。
 const pkgDetails = {
   postgres: {
-    repo: true,
+    mode: 'addRepo',
     mirrorRepourl: 'https://mirrors.cloud.tencent.com/postgresql/repos/apt/',
     repourl: 'http://apt.postgresql.org/pub/repos/apt',
     dpgkFile: 'pgdg.list',
@@ -94,6 +105,7 @@ const pkgDetails = {
 async function ensurePkg (node, pkgName, pkgVer) {
   const info = await pkgInfo(node, pkgName)
   let install = true
+  // console.log(pkgName, 'info=', info)
   if (info.ok) {
     if (!pkgVer || pkgVer !== info.Version) {
       // 版本相符，无需重新安装。未指定版本号也不重新安装。
@@ -110,7 +122,8 @@ async function ensurePkg (node, pkgName, pkgVer) {
     const commonName = s.startsWith(pkgName, '$') ? s.strRight(pkgName, '$') : pkgName
     const sysctlName = getSrvname(commonName)
 
-    if (pdetail.repo) {
+    const installMode = (pdetail ? pdetail.mode : 'std') || 'std'
+    if (installMode === 'addRepo') {
     // 不拦截错误，发生错误抛出异常。如未获取到pkgdetail，也会触发错误。
       await term.exec(`sudo sh -c 'echo "deb ${bMirror ? pdetail.mirrorRepourl : pdetail.repourl} $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/${pdetail.dpgkFile}'`)
       await term.pvexec(`sudo wget --quiet -O - ${bMirror ? pdetail.mirrorKeyUrl : pdetail.keyUrl} | sudo apt-key add -`)
@@ -129,6 +142,14 @@ async function ensurePkg (node, pkgName, pkgVer) {
       }
       await term.exec(`sudo systemctl start ${sysctlName}`)
       console.log(node.$name, 'install ', pkgName, 'finished!')
+    } else if (installMode === 'std') {
+      // 标准安装模式。
+      console.log('install std pkg,', pkgName)
+      await term.exec(`sudo apt-get -y install ${sysctlName} 2>&1 | tee -a ${node.logfname}`)
+      await term.exec('sudo sed -i \'s#bind 127.0.0.1#bind 0.0.0.0#g\' /etc/redis/redis.conf').catch(e => false)
+      await term.exec(`sudo systemctl start ${sysctlName} 2>&1 | tee -a ${node.logfname}`)
+    } else {
+      throw new Error('debian下未支持的包安装模式:', pkgName, installMode)
     }
   }
   // console.log(`${pkgName} info=`, info)
@@ -168,3 +189,4 @@ async function port (node, method, number) {
 module.exports.pkgInfo = pkgInfo
 module.exports.ensurePkg = ensurePkg
 module.exports.port = port
+module.exports.startSrv = startSrv

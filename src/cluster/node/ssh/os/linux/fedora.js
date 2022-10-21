@@ -59,7 +59,7 @@ async function pkgInfo (node, pkgName) {
 // 本issue下关于pkg维护的信息。默认采用腾讯云镜像，可自行换用清华，阿里等镜像。
 const pkgDetails = {
   postgres: {
-    dnf: true,
+    mode: 'addRepo',
     mirrorRepourl: (node) => {
       if (parseInt(node.$info.os.release) >= 35) {
         return `https://mirrors.cloud.tencent.com/postgresql/repos/yum/reporpms/F-${node.$info.os.release}-x86_64/pgdg-fedora-repo-latest.noarch.rpm`
@@ -89,7 +89,8 @@ async function ensurePkg (node, pkgName, pkgVer) {
     console.log('bMirror=', bMirror)
     const pdetail = pkgDetails[pkgName]
     // 不拦截错误，发生错误抛出异常。如未获取到pkgdetail，也会触发错误。
-    if (pdetail.dnf) {
+    const installMode = (pdetail ? pdetail.mode : 'std') || 'std'
+    if (installMode === 'addRepo') {
       let repoUrl = pdetail.repourl
       if (bMirror) {
         if (_.isString(pdetail.mirrorRepourl)) {
@@ -126,6 +127,14 @@ async function ensurePkg (node, pkgName, pkgVer) {
         await term.exec(`sudo echo "listen_addresses = '*'" >> ${pathFile}`)
       }
       await term.pvexec('sudo systemctl start postgresql-15')
+    } else if (installMode === 'std') {
+      const sysctlName = getSrvname(pkgName)
+      // 标准安装模式。
+      await term.exec(`sudo yum install -y ${sysctlName} 2>&1 | tee -a ${node.logfname}`)
+      await term.pvexec(`sudo systemctl enable ${sysctlName}`)
+      await term.exec(`sudo systemctl start ${sysctlName}`)
+    } else {
+      throw new Error('fedora下未支持的包安装方式。', pkgName, installMode)
     }
     console.log(node.$name, 'install ', pkgName, 'finished!!')
   }
@@ -133,3 +142,6 @@ async function ensurePkg (node, pkgName, pkgVer) {
 }
 module.exports.pkgInfo = pkgInfo
 module.exports.ensurePkg = ensurePkg
+module.exports.startSrv = async (srv, srvnameFunc) => {
+  return debian.startSrv(srv, getSrvname)
+}

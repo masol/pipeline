@@ -34,6 +34,11 @@ class Base {
     return this.#logfname
   }
 
+  // 获取节点的Ip。@Fixme: 需要将host映射为ip.
+  get pubIp () {
+    return this.#nodeDef.host
+  }
+
   // 将需要本地编译的服务加入result中。返回true表示有本地编译任务，否则返回false.
   // 本地编译任务是以$开头的服务。
   getCompSrvs (result) {

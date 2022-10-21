@@ -11,6 +11,7 @@
 
 const SrvFactory = require('./srv')
 const NodeFactory = require('./node')
+const fse = require('fs-extra')
 
 function taskWrapper (taskHandler) {
   return async function (fullName, srv, taskName) {
@@ -24,6 +25,7 @@ class Cluster {
   #ossDef
   #feched // 是否已经获取了系统信息。
   #dirty // 是否发生了自动分配，从而需要写回原始的节点定义。
+  #localcfg // 写入到localcfg中，在deploy结束时，如果不为空，会将配置写入到config/target/local.json(yml)中。
   constructor (envs) {
     this.envs = envs
     /** 这里加入的任务，在deploy时被清空，然后随着部署，调用其中的成员。其成员的结构如下:
@@ -34,11 +36,18 @@ class Cluster {
       handler: ('stageName')=>{}
     } */
     this.tasks = []
+    this.#localcfg = {}
     this.#nodes = {}
     this.#srvDef = {}
     this.#ossDef = null
     this.#dirty = false
     this.#feched = false
+  }
+
+  /// 返回localCfg下某个服务的配置项。
+  srvCfg (srvName) {
+    this.#localcfg[srvName] = this.#localcfg[srvName] || {}
+    return this.#localcfg[srvName]
   }
 
   static #onceTaskCache = {}
@@ -267,7 +276,10 @@ class Cluster {
   async deploy () {
     const that = this
     const { _, $ } = that.envs.soa
+    const cfgutil = that.envs.config.util
     const isDev = that.envs.args.target === 'dev'
+
+    const localPath = cfgutil.path('config', that.envs.args.target, 'local.json')
 
     // 首先查找是否需要本地编译webapi。$webass,$webtv等其它服务，通过检查配置项来查看，不属于节点。
     const needComp = {}
@@ -332,6 +344,11 @@ class Cluster {
         return taskInfo.handler('beforeApp')
       }
     })
+
+    if (!_.isEmpty(that.#localcfg)) {
+      // 将配置写入到target/localcfg中
+      await fse.writeJson(localPath, that.#localcfg)
+    }
 
     if (animation) {
       animation.replace('正在部署$web相关服务,请稍侯...')

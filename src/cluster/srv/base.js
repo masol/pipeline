@@ -136,8 +136,14 @@ class Base {
     }
   }
 
+  // 判定statusok 或者 force.返回是否需要部署。
   async deploy () {
     this.#init()
+    const that = this
+    const { _ } = that.node.$env.soa
+    const statusOk = _.isObject(that.status) && that.status.ok
+    const reqForce = that.node.$env.args.force
+    return (!statusOk || reqForce)
   }
 
   #chkCluster () {

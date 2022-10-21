@@ -30,9 +30,18 @@ class SSH extends Base {
     await requireOS(that.$info.os.type).requireIssue(that).ensurePkg(that, pkgName, version)
   }
 
-  async port (method, number) {
+  async port (method, number, fromIps) {
     const that = this
-    await requireOS(that.$info.os.type).requireIssue(that).port(that, method, number)
+    await requireOS(that.$info.os.type).requireIssue(that).port(that, method, number, fromIps)
+  }
+
+  async startSrv (srvName) {
+    const that = this
+    const srv = this._srvs[srvName]
+    if (!srv) {
+      throw new Error(that.$name, '节点中未定义服务', srvName, '无法启动之。')
+    }
+    await requireOS(that.$info.os.type).requireIssue(that).startSrv(srv)
   }
 
   async finish () {
