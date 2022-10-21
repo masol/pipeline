@@ -26,7 +26,7 @@ class Postgres extends Base {
     // 查找支持全部$webapi服务的节点。需要从$webapi节点访问数据库，据此判定是本地访问还是remote访问。
       const webApiNodes = that.node.$cluster.nodesBySrv('$webapi')
       const fromLocal = (webApiNodes.length === 1 && webApiNodes[0] === that.node)
-      await that.node.port(fromLocal ? 'close' : 'open', [5432, 5433])
+      await that.node.port(fromLocal ? 'close' : 'open', [5432, 5433], Base.nodeIps(webApiNodes))
       // console.log('fromLocal=', fromLocal)
       // console.log('deploy postgresql')
       await that.node.ensurePkg(that.name)

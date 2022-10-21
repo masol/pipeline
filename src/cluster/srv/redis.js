@@ -20,11 +20,12 @@ class Redis extends Base {
       throw new Error('集群模式Redis部署，尚未实现。')
     }
 
-    if (needDeploy) {
     // 查找支持全部$webapi服务的节点。需要从$webapi节点访问数据库，据此判定是本地访问还是remote访问。
-      const webApiNodes = that.node.$cluster.nodesBySrv('$webapi')
-      const fromLocal = (webApiNodes.length === 1 && webApiNodes[0] === that.node)
-      await that.node.port(fromLocal ? 'close' : 'open', 6379)
+    const webApiNodes = that.node.$cluster.nodesBySrv('$webapi')
+    const fromLocal = (webApiNodes.length === 1 && webApiNodes[0] === that.node)
+
+    if (needDeploy) {
+      await that.node.port(fromLocal ? 'close' : 'open', 6379, Base.nodeIps(webApiNodes))
 
       await that.node.ensurePkg(that.name)
 
@@ -32,6 +33,12 @@ class Redis extends Base {
       const term = that.node.$term
       await term.exec(`sudo echo 'requirepass "${passwd}"' >> /etc/redis/redis.conf`)
       that.node.startSrv(that.name)
+    }
+    // 即使不部署，也需要更新本地local配置，否则会丢失配置。
+    const localCfg = that.node.$cluster.srvCfg('redis')
+    localCfg.conf = localCfg.conf || {}
+    if (!fromLocal) {
+      localCfg.conf.host = that.node.pubIp
     }
   }
 }

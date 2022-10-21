@@ -87,6 +87,22 @@ class Base {
     }
   }
 
+  /// 从一个nodeArray获取ipArray,并过滤本节点。
+  static nodeIps (nodes) {
+    const ret = []
+    for (const n of nodes) {
+      if (n !== this.node) {
+        ret.push(n.pubIp)
+      }
+    }
+    if (ret.length === 0) {
+      return // undefined
+    } else if (ret.length === 1) {
+      return ret[0]
+    }
+    return ret
+  }
+
   /// 确保pwdFile存在，并返回其内容。用于维护基于文件的vault信息。
   /// 相同pwdFile全进程只会执行一次，之后都是返回缓冲。
   static async ensurePwd (pwdFile) {

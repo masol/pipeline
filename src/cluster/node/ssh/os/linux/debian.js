@@ -155,7 +155,7 @@ async function ensurePkg (node, pkgName, pkgVer) {
   // console.log(`${pkgName} info=`, info)
 }
 
-async function port (node, method, number) {
+async function port (node, method, number, fromIps) {
 // 首先确保ufw安装完毕。
   const term = node.$term
   const hasUfw = await term.exec('which ufw').catch(e => '')
@@ -177,12 +177,28 @@ async function port (node, method, number) {
   }
   const cmdStr = (method === 'open') ? 'allow' : 'deny'
   const { _ } = node.$env.soa
+  const handleNum = async (portNumber) => {
+    if (method === 'open' && fromIps) { // 只对fromIps的ip开放访问权限。
+      if (_.isArray(fromIps)) {
+        for (const ip of fromIps) {
+          await term.exec(`sudo ufw allow from ${ip} to any port ${portNumber}`)
+        }
+        // await term.exec(`sudo ufw deny ${portNumber}`)
+      } else {
+        await term.exec(`sudo ufw allow from ${fromIps} to any port ${portNumber}`)
+        // await term.exec(`sudo ufw deny ${portNumber}`)
+      }
+    } else {
+      await term.exec(`sudo ufw ${cmdStr} ${portNumber}`)
+    }
+  }
+
   if (_.isArray(number)) {
     for (const num of number) {
-      await term.exec(`sudo ufw ${cmdStr} ${num}`)
+      await handleNum(num)
     }
   } else {
-    await term.exec(`sudo ufw ${cmdStr} ${number}`)
+    await handleNum(number)
   }
   await term.exec('sudo ufw reload')
 }
