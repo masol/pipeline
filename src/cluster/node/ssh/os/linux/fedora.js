@@ -13,7 +13,8 @@ const debian = require('./debian')
 
 /// 将内部服务映射为issue指定的服务名称。
 const srvNameMap = {
-  postgres: 'postgresql-15'
+  postgres: 'postgresql-15',
+  elastic: 'elasticsearch'
 }
 function getSrvname (srvName) {
   return srvNameMap[srvName] || srvName
@@ -48,7 +49,7 @@ async function pkgInfo (node, pkgName) {
   const result = s.trim(await term.exec(`sudo yum list --installed | grep ${pkgName}`).catch(e => {
     return ''
   }))
-  console.log('yum result=', JSON.stringify(result))
+  // console.log('yum result=', JSON.stringify(result))
   const ret = {
     ok: !!result
   }
@@ -68,6 +69,16 @@ const pkgDetails = {
     },
     repourl: 'https://download.postgresql.org/pub/repos/yum/reporpms/F-36-x86_64/pgdg-fedora-repo-latest.noarch.rpm',
     pkgName: 'postgresql15-server'
+  },
+  elastic: { // tinghua镜像安装不正常，以后审查。
+    mode: 'addRepo2',
+    repoName: 'elastic',
+    repourl: 'https://libs.wware.org/pvpipeline/fedora/elastic.repo',
+    mirrorRepourl: 'https://libs.wware.org/pvpipeline/fedora/elastic.repo',
+    // mirrorRepourl: 'https://libs.wware.org/pvpipeline/fedora/elastic_tsinghua.repo',
+    // mirrorGpgKey: '',
+    mirrorGpgKey: 'https://artifacts.elastic.co/GPG-KEY-elasticsearch',
+    gpgKey: 'https://artifacts.elastic.co/GPG-KEY-elasticsearch'
   }
 }
 async function ensurePkg (node, pkgName, pkgVer) {
@@ -86,7 +97,6 @@ async function ensurePkg (node, pkgName, pkgVer) {
     // 添加源。
     const term = node.$term
     const bMirror = node.$env.args.mirror
-    console.log('bMirror=', bMirror)
     const pdetail = pkgDetails[pkgName]
     // 不拦截错误，发生错误抛出异常。如未获取到pkgdetail，也会触发错误。
     const installMode = (pdetail ? pdetail.mode : 'std') || 'std'
@@ -127,12 +137,30 @@ async function ensurePkg (node, pkgName, pkgVer) {
         await term.exec(`sudo echo "listen_addresses = '*'" >> ${pathFile}`)
       }
       await term.pvexec('sudo systemctl start postgresql-15')
+    } else if (installMode === 'addRepo2') {
+      const repoUrl = bMirror ? pdetail.mirrorRepourl : pdetail.repourl
+      const gpg = bMirror ? pdetail.mirrorGpgKey : pdetail.gpgKey
+      const sysctlName = getSrvname(pkgName)
+      if (gpg) {
+        await term.pvexec(`rpm --import ${gpg}  2>&1 | tee -a ${node.logfname}`).catch(e => '')
+      }
+      await term.exec(`sudo wget -O /etc/yum.repos.d/elastic.repo ${repoUrl}  2>&1 | tee -a ${node.logfname}`)
+      await term.exec(`sudo yum install -y --enablerepo=${pdetail.repoName} ${sysctlName}  2>&1 | tee -a ${node.logfname}`)
+      await term.pvexec(`sudo systemctl enable ${sysctlName}`)
+      await term.exec(`sudo systemctl start ${sysctlName}`)
     } else if (installMode === 'std') {
       const sysctlName = getSrvname(pkgName)
       // 标准安装模式。
       await term.exec(`sudo yum install -y ${sysctlName} 2>&1 | tee -a ${node.logfname}`)
-      await term.pvexec(`sudo systemctl enable ${sysctlName}`)
-      await term.exec(`sudo systemctl start ${sysctlName}`)
+      if (pkgName === 'redis') {
+        await term.pvexec(`sudo systemctl enable ${sysctlName}`)
+        await term.exec(`sudo systemctl start ${sysctlName}`)
+      } else if (pkgName === 'npm') {
+        await term.exec('sudo npm install -g npm')
+        if (bMirror) {
+          await term.exec('sudo npm config set registry=https://registry.npmmirror.com')
+        }
+      }
     } else {
       throw new Error('fedora下未支持的包安装方式。', pkgName, installMode)
     }
@@ -140,8 +168,38 @@ async function ensurePkg (node, pkgName, pkgVer) {
   }
   // console.log(`${pkgName} info=`, info)
 }
+
+async function port (node, method, number, fromIps) {
+  const term = node.$term
+  const { _ } = node.$env.soa
+  const zoneName = _.isArray(number) ? `pv-${number[0]}` : `pv-${number}`
+
+  if (method === 'open') {
+    await term.exec(`sudo firewall-cmd --new-zone=${zoneName} --permanent`).catch(e => '')
+    if (_.isArray(fromIps)) {
+      for (const ip of fromIps) {
+        await term.exec(`sudo firewall-cmd --zone=${zoneName} --add-source=${ip} --permanent`).catch(e => '')
+      }
+    } else {
+      await term.exec(`sudo firewall-cmd --zone=${zoneName} --add-source=${fromIps} --permanent`).catch(e => '')
+    }
+
+    if (_.isArray(number)) {
+      for (const num of number) {
+        await term.exec(`sudo firewall-cmd --zone=${zoneName} --add-port=${num}/tcp  --permanent`).catch(e => '')
+      }
+    } else {
+      await term.exec(`sudo firewall-cmd --zone=${zoneName} --add-port=${number}/tcp  --permanent`).catch(e => '')
+    }
+  } else {
+    await term.exec(`sudo firewall-cmd --delete-zone=${zoneName} --permanent`).catch(e => '')
+  }
+  await term.exec('sudo firewall-cmd --reload')
+}
+
 module.exports.pkgInfo = pkgInfo
 module.exports.ensurePkg = ensurePkg
+module.exports.port = port
 module.exports.startSrv = async (srv, srvnameFunc) => {
   return debian.startSrv(srv, getSrvname)
 }

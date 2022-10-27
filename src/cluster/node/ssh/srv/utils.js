@@ -155,7 +155,7 @@ async function ensureStateRes (node, info) {
   const isForce = node.$env.args.force
   if (isForce || VerStr !== info.ver) {
     // download file.
-    const pipeDir = node.$env.config.util.path('.pipeline')
+    const pipeDir = node.$cluster.cacheBase // node.$env.config.util.path('.pipeline')
     const reqMirror = node.$env.args.mirror
     const url = `${reqMirror ? info.mirror : info.url}${info.ver}.zip`
     const cacheDir = path.join(pipeDir, 'cache', 'salt-formula', info.name)

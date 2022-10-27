@@ -10,6 +10,8 @@
 // File: base
 const fs = require('fs-extra')
 
+const NodeVersion = 'v18.12.0'
+
 async function ensurePwd (env, pwdFile) {
   let passwd = await fs.readFile(pwdFile, 'utf8').catch(e => {
     return ''
@@ -150,6 +152,44 @@ class Base {
         }
       })
     }
+  }
+
+  // 确保nodejs在目标机上安装，并且返回nodejs执行路径地址。
+  async $ensureNodejs () {
+    const that = this
+    const term = that.node.$term
+    const { s } = that.node.$env.soa
+    const njsCmd = s.trim(await term.exec('which node').catch(e => ''))
+    if (njsCmd) {
+      return njsCmd
+    }
+
+    let nvmCmd = s.trim(await term.exec('ls ~/.nvm/nvm.sh').catch(e => ''))
+    console.log('nvmcmd=', nvmCmd)
+    if (!nvmCmd) {
+      await term.pvexec(`wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.2/install.sh | bash 2>&1 | tee -a ${that.node.logfname}`)
+      await term.exec('export NVM_DIR="$HOME/.nvm"')
+      await term.exec('[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"')
+      nvmCmd = s.trim(await term.exec('ls ~/.nvm/nvm.sh').catch(e => ''))
+      if (!nvmCmd) {
+        throw new Error('无法安装nvm，无法继续安装nodejs')
+      }
+    }
+    if (that.node.$env.args.mirror) {
+      await term.exec('export NVM_NODEJS_ORG_MIRROR=https://npmmirror.com/dist')
+    }
+    await term.exec(`nvm install ${NodeVersion} 2>&1 | tee -a ${that.node.logfname}`)
+    await term.exec('sudo rm -f /bin/node;sudo rm -f /bin/npm')
+    await term.pvexec(`sudo ln -s ~/.nvm/versions/node/${NodeVersion}/bin/node /bin/`)
+    await term.pvexec(`sudo ln -s ~/.nvm/versions/node/${NodeVersion}/lib/node_modules/npm/bin/npm-cli.js /bin/npm`)
+    if (!s.trim(await term.exec('which yarn'))) {
+      await term.exec('sudo npm install -g yarn')
+      const bMirror = that.node.$env.args.mirror
+      if (bMirror) {
+        await term.exec('sudo yarn config set registry=https://registry.npmmirror.com')
+      }
+    }
+    return s.trim(await term.exec('which node').catch(e => ''))
   }
 
   // 判定statusok 或者 force.返回是否需要部署。

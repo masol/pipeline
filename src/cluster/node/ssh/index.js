@@ -86,6 +86,24 @@ class SSH extends Base {
   }
 
   async deployApp () {
+    const that = this
+    that.$term = that.$term || await Term.create(that.$envs, that)
+    const { s } = that.$env.soa
+    const bForce = that.$env.args.force
+
+    // 服务的安装与维护需要串行，防止term上下文依赖。
+    for (const srvName in that._srvs) {
+      const srv = that._srvs[srvName]
+      if (!s.startsWith(srvName, '$')) {
+        continue
+      }
+      // 只有服务未就绪，或者开启了force模式时才执行。
+      if (!srv.ok || bForce) {
+        await srv.deploy().catch(e => {
+          throw new Error(`请求部署服务${srvName}时发生错误:${e}`)
+        })
+      }
+    }
   }
 
   async fetchSrv () {

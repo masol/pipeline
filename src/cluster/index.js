@@ -12,6 +12,7 @@
 const SrvFactory = require('./srv')
 const NodeFactory = require('./node')
 const fse = require('fs-extra')
+const logger = require('fancy-log')
 
 function taskWrapper (taskHandler) {
   return async function (fullName, srv, taskName) {
@@ -23,8 +24,12 @@ class Cluster {
   #nodes
   #srvDef
   #ossDef
+  #cacheBase // 缓冲根目录。api子项目下的.pipeline
+  #dns // dns配置服务。如果为空，不设置dns.
   #feched // 是否已经获取了系统信息。
+  #target // 额外的编译目标。$webtv/$webmb/$webwx....
   #dirty // 是否发生了自动分配，从而需要写回原始的节点定义。
+  #project // pvdev中的project.json的内容。
   #localcfg // 写入到localcfg中，在deploy结束时，如果不为空，会将配置写入到config/target/local.json(yml)中。
   constructor (envs) {
     this.envs = envs
@@ -42,6 +47,19 @@ class Cluster {
     this.#ossDef = null
     this.#dirty = false
     this.#feched = false
+    this.#target = {}
+    this.#dns = {}
+    this.#cacheBase = envs.config.util.path('.pipeline')
+    const project = fse.readJsonSync(envs.config.util.path('pvdev', 'project.json'), { throws: false })
+    this.#project = project || {}
+  }
+
+  get project () {
+    return this.#project || {}
+  }
+
+  get cacheBase () {
+    return this.#cacheBase
   }
 
   /// 返回localCfg下某个服务的配置项。
@@ -145,6 +163,14 @@ class Cluster {
         break
       case '$oss':
         this.#ossDef = keyValue
+        break
+      case '$dns':
+        this.#dns = keyValue
+        break
+      case '$webwx':
+      case '$webmb':
+      case '$webtv':
+        this.target[keyName] = keyValue
         break
       default:
         throw new Error(`不被支持的值${keyName}`)
@@ -253,24 +279,57 @@ class Cluster {
     // console.log('deployer.nodes=', deployer.nodes.local)
   }
 
+  // $webwx,$webtv,$webmb需要在cluster.#target中检查。
   async #compile (taskMaps) {
+    const that = this
+    const { shelljs, s } = this.envs.soa
+    const apiPwd = String(shelljs.pwd())
+    const doCompiler = async (pkgName, cfg) => {
+      try {
+        await require(`./compiler/${pkgName}`)(that, cfg)
+      } catch (e) {
+        logger.error(`加载编译方式${pkgName}失败:`, e)
+      }
+    }
+    for (const compName in taskMaps) {
+      const pkgName = s.strRight(compName, '$')
+      const cfg = taskMaps[compName]
+      await doCompiler(pkgName, cfg)
+    }
+    for (const compName in this.#target) {
+      const cfg = this.#target[compName]
+      const pkgName = s.strRight(compName, '$')
+      await doCompiler(pkgName, cfg)
+    }
+
+    if (taskMaps.$webapi) {
+      console.log('shelljs.pwd()=', apiPwd)
+      // run local server compile task
+    }
     if (taskMaps.$webass) {
       // run local assets compile task
     }
-    if (taskMaps.$webapi) {
-      // run local server compile task
-    }
+  }
+
+  // 按照#target.$oss,#target.$webmb以及$dns等配置来部署额外服务。
+  async #deployTarget () {
   }
 
   // 根据cluster的定义，$ossDef,$tvdef等信息来获取本地编译任务。
   #getCompileTask (taskMaps) {
     const that = this
+    /** 检查oss设置。 */
+    if (taskMaps.$webapi || that.#ossDef.type !== 'none') { // 需要部署oss.
+      taskMaps.$webass = true
+    }
+
     if (that.#ossDef) {
       taskMaps.$webass = true
     }
+
+    const { _ } = that.envs.soa
     // 添加手机版、pc版、tv版等信息。
-    // if (!isDev && that.#ossDef) {
-    // }
+    _.assign(taskMaps, that.#target)
   }
 
   async deploy () {
@@ -282,11 +341,10 @@ class Cluster {
     const localPath = cfgutil.path('config', that.envs.args.target, 'local.json')
 
     // 首先查找是否需要本地编译webapi。$webass,$webtv等其它服务，通过检查配置项来查看，不属于节点。
+    // 以$开头的为需要本地编译的服务。
     const needComp = {}
     // const { task, series } = opts.gulpInst
 
-    // 以$开头的为需要本地编译的服务。
-    const compSrvs = {}
     // 有需要本地部署的服务，在本地编译任务结束后，需要重新调用compNodes的deployApp.
     const compNodes = []
 
@@ -298,7 +356,7 @@ class Cluster {
     for (const nodeName in that.#nodes) {
       const node = that.#nodes[nodeName]
       // 本地环境不执行本地编译!!
-      if (!isDev && node.getCompSrvs(compSrvs)) {
+      if (!isDev && node.getCompSrvs(needComp)) {
         // 本节点需要本地编译，加入到compNodes.
         compNodes.push(node)
       }
@@ -311,7 +369,7 @@ class Cluster {
 
     if (!isDev) {
       // 本地环境下不执行编译任务。
-      that.#getCompileTask(compSrvs)
+      that.#getCompileTask(needComp)
     }
 
     let animation
@@ -332,6 +390,12 @@ class Cluster {
       }
     })
 
+    if (!_.isEmpty(that.#localcfg)) {
+      // 将配置写入到target/localcfg中
+      await fse.writeJson(localPath, that.#localcfg)
+    }
+
+    console.log('needComp=', needComp)
     if (!_.isEmpty(needComp)) {
       if (animation) {
         animation.replace('正在编译本地资源,请稍侯...')
@@ -345,17 +409,14 @@ class Cluster {
       }
     })
 
-    if (!_.isEmpty(that.#localcfg)) {
-      // 将配置写入到target/localcfg中
-      await fse.writeJson(localPath, that.#localcfg)
-    }
-
     if (animation) {
       animation.replace('正在部署$web相关服务,请稍侯...')
     }
     await $.mapLimit(compNodes, limit, (node) => {
       return node.deployApp()
     })
+    // @TODO: 检查target的内容，并根据target来部署。
+    // that.deployTarget()
 
     await $.mapLimit(that.tasks, limit, (taskInfo) => {
       if (taskInfo.afterEnv && _.isFunction(taskInfo.handler)) {

@@ -25,12 +25,14 @@
     "filesize": "^10.0.5",
     "fs-extra": "^10.1.0",
     "gulp-changed": "^4.0.3",
+    "gulp-uglify": "^3.0.2",
     "js-yaml": "^4.1.0",
     "node-fetch": "^3.2.10",
     "node-pty": "^0.10.1",
     "portastic": "^1.0.1",
     "ssh2-promise": "^1.0.3",
     "ssh2-sftp-client": "^9.0.4",
+    "uglify-js": "^3.17.4",
     "unique-filename": "^2.0.1"
   },
   "devDependencies": {

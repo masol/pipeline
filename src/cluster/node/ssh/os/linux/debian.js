@@ -27,7 +27,8 @@ module.exports.mirror = async function (node) {
 /// 将标准服务映射为issue指定的服务名称。
 const srvNameMap = {
   postgres: 'postgresql',
-  redis: 'redis-server'
+  redis: 'redis-server',
+  elastic: 'elasticsearch'
 }
 function getSrvname (srvName) {
   return srvNameMap[srvName] || srvName
@@ -99,6 +100,19 @@ const pkgDetails = {
     dpgkFile: 'pgdg.list',
     mirrorKeyUrl: 'https://mirrors.cloud.tencent.com/postgresql/repos/apt/ACCC4CF8.asc',
     keyUrl: 'https://www.postgresql.org/media/keys/ACCC4CF8.asc'
+  },
+  elastic: {
+    mode: 'func',
+    func: async (node) => {
+      const term = node.$term
+      await term.pvexec('wget -qO - https://artifacts.elastic.co/GPG-KEY-elasticsearch | sudo gpg --dearmor -o /usr/share/keyrings/elasticsearch-keyring.gpg')
+      await term.exec('sudo echo "deb [signed-by=/usr/share/keyrings/elasticsearch-keyring.gpg] https://artifacts.elastic.co/packages/8.x/apt stable main" | sudo tee /etc/apt/sources.list.d/elastic-8.x.list')
+      await term.exec(`sudo apt-get update  2>&1 | tee -a ${node.logfname}`)
+      await term.exec(`sudo apt-get install elasticsearch  2>&1 | tee -a ${node.logfname}`)
+      await term.exec('sudo systemctl daemon-reload')
+      await term.exec('sudo systemctl enable elasticsearch.service').catch(e => '')
+      await term.exec('sudo systemctl start elasticsearch.service')
+    }
   }
 }
 // 为指定节点，安装software规定的软件。
@@ -146,8 +160,17 @@ async function ensurePkg (node, pkgName, pkgVer) {
       // 标准安装模式。
       console.log('install std pkg,', pkgName)
       await term.exec(`sudo apt-get -y install ${sysctlName} 2>&1 | tee -a ${node.logfname}`)
-      await term.exec('sudo sed -i \'s#bind 127.0.0.1#bind 0.0.0.0#g\' /etc/redis/redis.conf').catch(e => false)
-      await term.exec(`sudo systemctl start ${sysctlName} 2>&1 | tee -a ${node.logfname}`)
+      if (pkgName === 'redis') {
+        await term.exec('sudo sed -i \'s#bind 127.0.0.1#bind 0.0.0.0#g\' /etc/redis/redis.conf').catch(e => false)
+        await term.exec(`sudo systemctl start ${sysctlName} 2>&1 | tee -a ${node.logfname}`)
+      } else if (pkgName === 'npm') {
+        await term.exec('sudo npm install -g npm')
+        if (bMirror) {
+          await term.exec('sudo npm config set registry=https://registry.npmmirror.com')
+        }
+      }
+    } else if (installMode === 'func') {
+      await pdetail.func(node)
     } else {
       throw new Error('debian下未支持的包安装模式:', pkgName, installMode)
     }
