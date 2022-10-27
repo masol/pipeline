@@ -45,7 +45,7 @@ class $Webapi extends Base {
     await term.exec(`cd /srv/webapi;sudo yarn install 2>&1 | tee -a ${that.node.logfname}`)
     const targetDir = '/srv/webapi/config/active'
     const srcDir = `/srv/webapi/config/${that.node.$env.args.target}`
-    await term.exec(`[[ -f $${targetDir} ]] || ln -s ${srcDir} ${targetDir}`)
+    await term.exec(`[[ -f $${targetDir} ]] || ln -s ${srcDir} ${targetDir}`).catch(e => '')
   }
 }
 
