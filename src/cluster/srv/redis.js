@@ -25,15 +25,20 @@ class Redis extends Base {
     const fromLocal = (webApiNodes.length === 1 && webApiNodes[0] === that.node)
 
     if (needDeploy) {
-      await that.node.port(fromLocal ? 'close' : 'open', 6379, Base.nodeIps(webApiNodes))
+      await that.node.commands.port(fromLocal ? 'close' : 'open', 6379, Base.nodeIps(webApiNodes))
 
-      await that.node.ensurePkg(that.name)
+      await that.node.commands.ensurePkg(that.name)
 
       const passwd = await Base.ensurePwd(cfgutil.path('config', that.node.$env.args.target, 'redis', 'password'))
-      const term = that.node.$term
-      await term.exec(`sudo echo 'requirepass "${passwd}"' >> /etc/redis/redis.conf`)
-      that.node.startSrv(that.name)
+
+      const cmdStr = `
+sudo sed -i '/^requirepass/d' /etc/redis/redis.conf
+sudo echo 'requirepass "${passwd}"' >> /etc/redis/redis.conf
+`
+      that.node.addStage(that.name, cmdStr)
+      that.node.commands.startSrv(that.name)
     }
+
     // 即使不部署，也需要更新本地local配置，否则会丢失配置。
     const localCfg = that.node.$cluster.srvCfg('redis')
     localCfg.conf = localCfg.conf || {}

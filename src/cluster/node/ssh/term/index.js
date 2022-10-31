@@ -92,6 +92,7 @@ function pvftp (term, envOpts) {
    */
 async function procExpect (socket, expect = {}, envOpts, cmdline) {
   const { _, s, $ } = envOpts.soa
+  let reqExit = false
   const opts = expect.opts || { }
   if (_.isUndefined(opts.stripColors)) opts.stripColors = true
   if (_.isUndefined(opts.autoExit)) opts.autoExit = true
@@ -152,6 +153,9 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
         let task
         if (_.isFunction(procInfo.action)) {
           task = procInfo.action(socket, line)
+        } else if (procInfo.action === 'reqExit') {
+          task = socket.write('\rexit\r')
+          reqExit = true
         }
         return procActionRet(task)
       } else {
@@ -195,11 +199,16 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
     })
     socket.on('data', (data) => {
       data = data.toString()
+      if (reqExit) {
+        socket.write('\rexit\r')
+      }
+      if (opts.debug) {
+        console.log('接收到原始行输出:', data)
+      }
       if (opts.stripColors) {
         // eslint-disable-next-line no-control-regex
         data = data.replace(/\u001b\[\d{0,2}m/g, '')
       }
-      // console.log('on data=', data)
       lines = _.concat(lines, s.lines(data))
       if (!bProc) {
         procLines()
@@ -212,6 +221,9 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
       })
     })
     // console.log('procexpect cmdline=', cmdline + '\n' + (opts.autoExit ? '\nexit\n' : ''))
+    if (opts.debug) {
+      console.log('输入命令行:', cmdline + '\n' + (opts.autoExit ? '\nexit\n' : ''))
+    }
     socket.write(cmdline + '\n' + (opts.autoExit ? 'exit\n' : ''))
   })
 }

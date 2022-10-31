@@ -173,10 +173,11 @@ async function cp2Remote (sftp, local, remote, envOpts) {
   const { _, s, $ } = envOpts.soa
   await cp2rGather(sftp, local, remote, { ctx, _, s })
   // console.log('after cp2rgather,tasks=')
-  // console.log(ctx.dirTasks)
-  // console.log(ctx.cpTasks)
+  console.log(ctx.dirTasks)
+  console.log(ctx.cpTasks)
   const limit = parseInt(envOpts.args.concurrency) || 5
   await $.mapLimit(ctx.dirTasks, limit, async (item) => {
+    // console.log('sftpmkdir=', item.remote)
     return await sftpMkdir(sftp, item.remote)
   })
 

@@ -13,18 +13,24 @@ const debian = require('./debian')
 
 // ubuntu镜像使用清华大学镜像。https://mirror.tuna.tsinghua.edu.cn/help/ubuntu/
 module.exports.mirror = async function (node) {
-  const term = node.$term
-  const { s } = node.$env.soa
-  const logfname = node.logfname
-  const isMirror = s.trim(await term.exec('grep "mirrors.tuna.tsinghua.edu.cn" /etc/apt/sources.list').catch(e => false))
-  if (!isMirror) {
-    await term.exec('sudo sed -i "s@http://.*archive.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list').catch(e => false)
-    await term.exec('sudo sed -i "s@http://.*security.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list').catch(e => false)
-    await term.exec(`sudo apt-get update 2>&1 | tee -a ${logfname}`).catch(e => false)
-    await term.exec(`sudo apt-get upgrade 2>&1 | tee -a ${logfname}`).catch(e => false)
+  const stageName = 'mirror'
+  if (!node.hasStage(stageName)) {
+    const cmd = `mirror=$(sudo grep "mirrors.tuna.tsinghua.edu.cn" /etc/apt/sources.list)
+if test -z "$mirror"
+then
+  sudo sed -i "s@http://.*archive.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list
+  sudo sed -i "s@http://.*security.ubuntu.com@https://mirrors.tuna.tsinghua.edu.cn@g" /etc/apt/sources.list
+  sudo apt-get -y update
+  sudo apt-get -y upgrade
+else
+  echo "\\$mirror already setting"
+fi
+  `
+    node.addStage(stageName, cmd)
   }
 }
 
 module.exports.status = debian.status
-module.exports.pkgInfo = debian.pkgInfo
+module.exports.port = debian.port
 module.exports.ensurePkg = debian.ensurePkg
+module.exports.startSrv = debian.startSrv

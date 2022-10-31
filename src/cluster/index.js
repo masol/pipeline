@@ -352,7 +352,7 @@ class Cluster {
     that.tasks = []
 
     // 保存了需要执行任务的节点。
-    const tasks = []
+    const sshTasks = []
     for (const nodeName in that.#nodes) {
       const node = that.#nodes[nodeName]
       // 本地环境不执行本地编译!!
@@ -361,7 +361,7 @@ class Cluster {
         compNodes.push(node)
       }
       if (node.bSSH) {
-        tasks.push(node)
+        sshTasks.push(node)
       } else {
         await node.deployEnv()
       }
@@ -373,14 +373,14 @@ class Cluster {
     }
 
     let animation
-    if (tasks.length > 0) {
+    if (sshTasks.length > 0) {
       const chalkAnimation = (await import('chalk-animation')).default
-      const baseStr = '正在部署环境(日志保存在每节点的~/install-日期.log中)，'
+      const baseStr = '正在部署环境(日志及部署脚本保存在每节点的"~/install-日期"目录中)，'
       animation = chalkAnimation.rainbow(baseStr + '请稍候...')
     }
 
     const limit = parseInt(that.envs.args.concurrency) || 5
-    await $.mapLimit(tasks, limit, (node) => {
+    await $.mapLimit(sshTasks, limit, (node) => {
       return node.deployEnv()
     })
 
@@ -395,7 +395,7 @@ class Cluster {
       await fse.writeJson(localPath, that.#localcfg)
     }
 
-    console.log('needComp=', needComp)
+    // console.log('needComp=', needComp)
     if (!_.isEmpty(needComp)) {
       if (animation) {
         animation.replace('正在编译本地资源,请稍侯...')
@@ -404,7 +404,7 @@ class Cluster {
     }
 
     await $.mapLimit(that.tasks, limit, (taskInfo) => {
-      if (taskInfo.afterEnv && _.isFunction(taskInfo.handler)) {
+      if (taskInfo.beforeApp && _.isFunction(taskInfo.handler)) {
         return taskInfo.handler('beforeApp')
       }
     })
@@ -419,7 +419,7 @@ class Cluster {
     // that.deployTarget()
 
     await $.mapLimit(that.tasks, limit, (taskInfo) => {
-      if (taskInfo.afterEnv && _.isFunction(taskInfo.handler)) {
+      if (taskInfo.afterApp && _.isFunction(taskInfo.handler)) {
         return taskInfo.handler('afterApp')
       }
     })
