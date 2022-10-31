@@ -285,10 +285,14 @@ class Cluster {
     const { shelljs, s } = this.envs.soa
     const apiPwd = String(shelljs.pwd())
     const doCompiler = async (pkgName, cfg) => {
+      let compiler
       try {
-        await require(`./compiler/${pkgName}`)(that, cfg)
+        compiler = require(`./compiler/${pkgName}`)
       } catch (e) {
         logger.error(`加载编译方式${pkgName}失败:`, e)
+      }
+      if (compiler) {
+        return await compiler(that, cfg)
       }
     }
     for (const compName in taskMaps) {

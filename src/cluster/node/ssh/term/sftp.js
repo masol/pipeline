@@ -110,9 +110,8 @@ async function cp2Local (sftp, remote, local, envOpts, filter) {
 async function cp2rGather (sftp, local, remote, opts) {
   const { ctx, _, s } = opts
   // 返回true表示继续。filter只处理文件，目录会全部保存。
-  // console.log('read local=', local)
   const dirs = await fs.readdir(local).catch(e => {
-    if (e.code === 2) { // 忽略不存在的错误。
+    if (e.code === 'ENOENT') { // 忽略不存在的错误。
       return []
     }
     throw e
@@ -153,7 +152,8 @@ async function cp2rGather (sftp, local, remote, opts) {
 async function sftpMkdir (sftp, remote) {
   return await sftp.mkdir(remote).catch(async e => {
     if (e.code === 2) { // 不存在。
-      return await sftpMkdir(sftp, linuxPath('dirname', [remote]))
+      await sftpMkdir(sftp, linuxPath('dirname', [remote]))
+      return await sftpMkdir(sftp, remote)
     } else if (e.code === 4) { // 已存在。
       return []
     }
@@ -173,16 +173,18 @@ async function cp2Remote (sftp, local, remote, envOpts) {
   const { _, s, $ } = envOpts.soa
   await cp2rGather(sftp, local, remote, { ctx, _, s })
   // console.log('after cp2rgather,tasks=')
-  console.log(ctx.dirTasks)
-  console.log(ctx.cpTasks)
+  // console.log(ctx.dirTasks)
   const limit = parseInt(envOpts.args.concurrency) || 5
   await $.mapLimit(ctx.dirTasks, limit, async (item) => {
     // console.log('sftpmkdir=', item.remote)
     return await sftpMkdir(sftp, item.remote)
   })
 
+  // console.log(ctx.cpTasks)
   await $.mapLimit(ctx.cpTasks, limit, async (item) => {
-    return await sftp.fastPut(item.local, item.remote)
+    return await sftp.fastPut(item.local, item.remote).catch(e => {
+      console.log(`fastPut错误:${item.local},remote=${item.remote}:`, e)
+    })
   })
 }
 

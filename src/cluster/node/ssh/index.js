@@ -64,11 +64,15 @@ class SSH extends Base {
     // 部署就是创建对应的bash脚本。并在上传至服务器后，执行之。
     // 部分可能断开ssh连接的指令，如port直接使用term.exec在构建期执行完毕。
     // 目前的stage: mirror
+    this.#resetBash()
+    this.commands = new Commands(this)
+    this.#cacheBase = path.join(cluster.cacheBase, name)
+  }
+
+  #resetBash () {
     this.#bash = { }
     this.#assets = {}
     this.#depGraph = new DepGraph()
-    this.commands = new Commands(this)
-    this.#cacheBase = path.join(cluster.cacheBase, name)
   }
 
   get instRoot () {
@@ -84,8 +88,11 @@ class SSH extends Base {
     console.log('order=', order)
     console.log('size=', that.#depGraph.size())
     const bashArray = []
-    for (const part of order) {
-      bashArray.push(that.#bash[part].join('\n'))
+    for (const partName of order) {
+      const part = that.#bash[partName]
+      if (part) { // 防止part不存在，例如添加了依赖，但是依赖不存在。
+        bashArray.push(part.join('\n'))
+      }
     }
     const preContent = `#/bin/bash
 cd ~/install-${new Date().toJSON().slice(0, 10)}
@@ -94,6 +101,43 @@ INSTROOT=$(pwd)\n
     //
     const postContent = `\necho ${SSH.DeployEndStr}`
     return preContent + bashArray.join('\n') + postContent
+  }
+
+  async #runDeploy (localDirPart) {
+    const that = this
+    const { s } = that.$env.soa
+    // 开始生成bash脚本。
+    const bashStr = await that.#genBash()
+    if (bashStr) { // 有部署脚本需要执行，并上传至服务器。
+      const basePath = path.join(that.#cacheBase, localDirPart)
+      const scriptName = `${localDirPart}.sh`
+      await fse.emptyDir(basePath)
+      await fse.writeFile(path.join(basePath, scriptName), bashStr)
+      const changeSubFunc = (path.sep === '/' ? null : (pathfile) => { return s.replaceAll(pathfile, '/', path.sep) })
+      for (const assetName in that.#assets) {
+        const fileName = changeSubFunc ? changeSubFunc(assetName) : assetName
+        await fse.writeFile(path.join(basePath, fileName), that.#assets[assetName])
+      }
+      console.log('bash file=', path.join(basePath, scriptName))
+      const sftp = await that.$term.pvftp()
+      console.log('basePath=', basePath)
+      console.log('that.#targetDir=', that.#targetDir)
+      await sftp.cp2Remote(basePath, that.#targetDir)
+      if (!that.$env.args['dry-run']) {
+        console.log('run deploy for node:', that.$name)
+        await that.$term.pvexec(`sudo bash ${that.#targetDir}/${scriptName} 2>&1 | tee -a ${that.logfname}`, {
+          out: [{
+            mode: 'wait',
+            exp: SSH.DeployEndStr,
+            action: 'reqExit'
+          }],
+          opts: {
+            debug: true, // 如果debug打开，会在console中打印处理的每行及匹配情况。
+            autoExit: false // 自动在cmdline后追加'\nexit'以退出shell，设置为false,需要自行退出。
+          }
+        })
+      }
+    }
   }
 
   hasStage (name) {
@@ -209,39 +253,7 @@ INSTROOT=$(pwd)\n
         })
       }
     }
-
-    // 开始生成bash脚本。
-    const bashStr = await that.#genBash()
-    if (bashStr) { // 有部署脚本需要执行，并上传至服务器。
-      const basePath = path.join(that.#cacheBase, 'install')
-      await fse.emptyDir(basePath)
-      await fse.writeFile(path.join(basePath, 'depenv.sh'), bashStr)
-      const changeSubFunc = (path.sep === '/' ? null : (pathfile) => { return s.replaceAll(pathfile, '/', path.sep) })
-      for (const assetName in that.#assets) {
-        const fileName = changeSubFunc ? changeSubFunc(assetName) : assetName
-        await fse.writeFile(path.join(basePath, fileName), that.#assets[assetName])
-      }
-      console.log('bash file=', path.join(basePath, 'depenv.sh'))
-      const sftp = await that.$term.pvftp()
-      console.log('basePath=', basePath)
-      console.log('that.#targetDir=', that.#targetDir)
-      await sftp.cp2Remote(basePath, that.#targetDir)
-      if (!that.$env.args['dry-run']) {
-        console.log('run deploy for node:', that.$name)
-        await that.$term.pvexec(`sudo bash ${that.#targetDir}/depenv.sh 2>&1 | tee -a ${that.logfname}`, {
-          out: [{
-            mode: 'wait',
-            exp: SSH.DeployEndStr,
-            action: 'reqExit'
-          }],
-          opts: {
-            debug: true, // 如果debug打开，会在console中打印处理的每行及匹配情况。
-            autoExit: false // 自动在cmdline后追加'\nexit'以退出shell，设置为false,需要自行退出。
-          }
-        })
-      }
-    }
-    // console.log('bashStr=', bashStr)
+    await that.#runDeploy('depenv')
   }
 
   async deployApp () {
@@ -250,6 +262,7 @@ INSTROOT=$(pwd)\n
     const { s } = that.$env.soa
     const bForce = that.$env.args.force
 
+    that.#resetBash()
     // 服务的安装与维护需要串行，防止term上下文依赖。
     for (const srvName in that._srvs) {
       const srv = that._srvs[srvName]
@@ -263,6 +276,7 @@ INSTROOT=$(pwd)\n
         })
       }
     }
+    await that.#runDeploy('depapp')
   }
 
   async fetchSrv () {

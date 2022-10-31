@@ -10,18 +10,24 @@
 // File: $webapi
 
 const Base = require('./base')
-// const path = require('path')
+const path = require('path')
 
 class $Webapi extends Base {
   async deploy () {
-    // const that = this
-    // // const cfgutil = that.node.$env.config.util
-    // const needDeploy = await super.deploy()
-    // console.log(that.name, 'needDeploy=', needDeploy)
-    // if (!that.isSingle()) {
-    //   throw new Error('集群模式$Webapi部署，尚未实现。')
-    // }
+    const that = this
+    // const cfgutil = that.node.$env.config.util
+    const needDeploy = await super.deploy()
+    console.log(that.name, 'needDeploy=', needDeploy)
+    if (!that.isSingle()) {
+      throw new Error('集群模式$Webapi部署，尚未实现。')
+    }
     // // 开始部署单机版$webapi.
+    await that.$ensureNodejs()
+    const sftp = await that.node.$term.pvftp()
+    const localWebapi = path.join(that.node.$cluster.cacheBase, 'target', 'webapi')
+    console.log('localWebapi=', localWebapi)
+    await sftp.cp2Remote(localWebapi, '/srv/webapi')
+
     // const term = that.node.$term
     // // const { s } = that.node.$env.soa
 

@@ -24,9 +24,13 @@ async function compile (cluster, cfg) {
     .pipe(dest(destPath))
 
   const minify = composer(uglifyjs, console)
-  await src(['app.js', 'src/*/*.js'], { base: './' })
-    .pipe(minify())
-    .pipe(dest(destPath))
+  return new Promise((resolve, reject) => {
+    src(['app.js', 'src/*/*.js'], { base: './' })
+      .pipe(minify())
+      .on('error', reject)
+      .pipe(dest(destPath))
+      .on('end', resolve)
+  })
 }
 
 module.exports = compile

@@ -157,39 +157,57 @@ class Base {
   // 确保nodejs在目标机上安装，并且返回nodejs执行路径地址。
   async $ensureNodejs () {
     const that = this
-    const term = that.node.$term
-    const { s } = that.node.$env.soa
-    const njsCmd = s.trim(await term.exec('which node').catch(e => ''))
-    if (njsCmd) {
-      return njsCmd
-    }
+    const nvmMirror = '' // mirror不可用: (that.node.$env.args.mirror) ? 'export NVM_NODEJS_ORG_MIRROR=https://npmmirror.com/dist' : ''
+    const yarnMirror = (that.node.$env.args.mirror) ? 'sudo yarn config set registry=https://registry.npmmirror.com' : ''
+    const targetDir = '/srv/webapi/config/active'
+    const srcDir = `/srv/webapi/config/${that.node.$env.args.target}`
 
-    let nvmCmd = s.trim(await term.exec('ls ~/.nvm/nvm.sh').catch(e => ''))
-    console.log('nvmcmd=', nvmCmd)
-    if (!nvmCmd) {
-      await term.pvexec(`wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.2/install.sh | bash 2>&1 | tee -a ${that.node.logfname}`)
-      await term.exec('export NVM_DIR="$HOME/.nvm"')
-      await term.exec('[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"')
-      nvmCmd = s.trim(await term.exec('ls ~/.nvm/nvm.sh').catch(e => ''))
-      if (!nvmCmd) {
-        throw new Error('无法安装nvm，无法继续安装nodejs')
-      }
-    }
-    if (that.node.$env.args.mirror) {
-      await term.exec('export NVM_NODEJS_ORG_MIRROR=https://npmmirror.com/dist')
-    }
-    await term.exec(`nvm install ${NodeVersion} 2>&1 | tee -a ${that.node.logfname}`)
-    await term.exec('sudo rm -f /bin/node;sudo rm -f /bin/npm')
-    await term.pvexec(`sudo ln -s ~/.nvm/versions/node/${NodeVersion}/bin/node /bin/`)
-    await term.pvexec(`sudo ln -s ~/.nvm/versions/node/${NodeVersion}/lib/node_modules/npm/bin/npm-cli.js /bin/npm`)
-    if (!s.trim(await term.exec('which yarn'))) {
-      await term.exec('sudo npm install -g yarn')
-      const bMirror = that.node.$env.args.mirror
-      if (bMirror) {
-        await term.exec('sudo yarn config set registry=https://registry.npmmirror.com')
-      }
-    }
-    return s.trim(await term.exec('which node').catch(e => ''))
+    const cmdStr = `sudo ls ~/.nvm/nvm.sh &>/dev/null
+status=$?
+if [ $status -ne 0 ]
+then
+  wget -qO- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.2/install.sh | bash
+fi
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
+${nvmMirror}
+sudo which node &>/dev/null
+status=$?
+if [ $status -ne 0 ]
+then
+  nvm install ${NodeVersion}
+  sudo rm -f /bin/node
+  sudo rm -f /bin/npm
+  sudo ln -s ~/.nvm/versions/node/${NodeVersion}/bin/node /bin/
+  sudo ln -s ~/.nvm/versions/node/${NodeVersion}/lib/node_modules/npm/bin/npm-cli.js /bin/npm
+fi
+
+sudo which yarn
+status=$?
+if [ $status -ne 0 ]
+then
+  sudo npm install -g yarn
+  ${yarnMirror}
+fi
+sudo which pm2
+status=$?
+if [ $status -ne 0 ]
+then
+  sudo npm install -g pm2
+  ${yarnMirror}
+fi
+if id "webapi" &>/dev/null
+then
+  echo 'user webapi already exist!'
+else
+  sudo useradd -r -d /srv/webapi -s /sbin/nologin webapi
+fi
+[[ -f ${targetDir} ]] || ln -s ${srcDir} ${targetDir}
+chown webapi.webapi -R /srv/webapi
+cd /srv/webapi
+sudo -u webapi yarn install
+`
+    that.#node.addStage('nodejs', cmdStr, 'mirror')
   }
 
   // 判定statusok 或者 force.返回是否需要部署。
