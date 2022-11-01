@@ -188,6 +188,7 @@ if [ $status -ne 0 ]
 then
   sudo npm install -g yarn
   ${yarnMirror}
+  sudo ln -s ~/.nvm/versions/node/${NodeVersion}/lib/node_modules/yarn/bin/yarn /bin/
 fi
 sudo which pm2
 status=$?
@@ -195,6 +196,7 @@ if [ $status -ne 0 ]
 then
   sudo npm install -g pm2
   ${yarnMirror}
+  sudo ln -s ~/.nvm/versions/node/${NodeVersion}/lib/node_modules/pm2/bin/pm2 /bin/
 fi
 if id "webapi" &>/dev/null
 then
@@ -203,9 +205,9 @@ else
   sudo useradd -r -d /srv/webapi -s /sbin/nologin webapi
 fi
 [[ -f ${targetDir} ]] || ln -s ${srcDir} ${targetDir}
-chown webapi.webapi -R /srv/webapi
 cd /srv/webapi
-sudo -u webapi yarn install
+sudo yarn install
+chown webapi.webapi -R /srv/webapi
 `
     that.#node.addStage('nodejs', cmdStr, 'mirror')
   }

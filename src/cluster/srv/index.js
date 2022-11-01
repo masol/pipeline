@@ -20,7 +20,7 @@ function create (name, srvDef, node) {
     const Cls = require(`./${clsName}`)
     return new Cls(name, srvDef, node)
   } catch (e) {
-    logger.error(`节点${node.$name}需要未支持的服务${name},退化到基础服务，部署可能会发生错误。`, e)
+    logger.error(`节点${node.$name}需要未支持的服务${name},退化到基础服务，部署可能会发生错误。`)
     return new Base(name, srvDef, node)
   }
 }

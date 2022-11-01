@@ -29,6 +29,7 @@ class Redis extends Base {
 
       await that.node.commands.ensurePkg(that.name)
 
+      console.log('write redis passwd file!!')
       const passwd = await Base.ensurePwd(cfgutil.path('config', that.node.$env.args.target, 'redis', 'password'))
 
       const cmdStr = `

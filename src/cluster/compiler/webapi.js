@@ -20,9 +20,14 @@ async function compile (cluster, cfg) {
   await fse.emptyDir(destPath)
   const { src, dest } = cluster.envs.gulpInst
   // 拷贝辅助文件。
-  await src(['package.json', 'LICENSE', `config/${cluster.envs.args.target}/**/*`], { base: './' })
-    .pipe(dest(destPath))
+  const cpTask = new Promise((resolve, reject) => {
+    src(['package.json', 'LICENSE', `config/${cluster.envs.args.target}/**/*`], { base: './' })
+      .pipe(dest(destPath))
+      .on('error', reject)
+      .on('end', resolve)
+  })
 
+  await cpTask
   const minify = composer(uglifyjs, console)
   return new Promise((resolve, reject) => {
     src(['app.js', 'src/*/*.js'], { base: './' })
