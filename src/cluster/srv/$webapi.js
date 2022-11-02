@@ -21,6 +21,7 @@ class $Webapi extends Base {
     if (!that.isSingle()) {
       throw new Error('集群模式$Webapi部署，尚未实现。')
     }
+    await that.node.commands.port('open', [80, 443])
     // // 开始部署单机版$webapi.
     await that.$ensureNodejs()
     const sftp = await that.node.$term.pvftp()
@@ -28,6 +29,13 @@ class $Webapi extends Base {
     console.log('localWebapi=', localWebapi)
     await sftp.cp2Remote(localWebapi, '/srv/webapi')
 
+    const cmdStr = `cd /srv/webapi
+pm2 start -i max
+pm2 startup --service-name webapi
+pm2 save
+systemctl restart webapi.service
+`
+    that.node.addStage('webapi', cmdStr, 'nodejs')
     // const term = that.node.$term
     // // const { s } = that.node.$env.soa
 

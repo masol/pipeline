@@ -30,7 +30,7 @@ async function compile (cluster, cfg) {
   await cpTask
   const minify = composer(uglifyjs, console)
   return new Promise((resolve, reject) => {
-    src(['app.js', 'src/*/*.js'], { base: './' })
+    src(['*.js', 'src/*.js', 'src/**/*.js'], { base: './' })
       .pipe(minify())
       .on('error', reject)
       .pipe(dest(destPath))

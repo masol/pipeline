@@ -111,9 +111,27 @@ if test -f "/etc/postgresql/15/main/postgresql.conf"; then
 elif test -f "/etc/postgresql/14/main/postgresql.conf"; then
   PGCFGFILE=/etc/postgresql/14/main/postgresql.conf
 fi
-[ ! -z "$PGCFGFILE" ] || sudo echo "listen_addresses = '*'" >> $PGCFGFILE
-sudo systemctl start ${sysctlName}
+[ -z "$PGCFGFILE" ] || sudo echo "listen_addresses = '*'" >> $PGCFGFILE
 `)
+      {
+        const webApiNodes = node.$cluster.nodesBySrv('$webapi')
+        const fromLocal = (webApiNodes.length === 1 && webApiNodes[0] === node)
+        if (!fromLocal) {
+          cmdArray.push(`PGHBAILE=''
+          if test -f "/etc/postgresql/15/main/pg_hba.conf"; then
+            PGHBAILE=/etc/postgresql/15/main/pg_hba.conf
+          elif test -f "/etc/postgresql/14/main/pg_hba.conf"; then
+            PGHBAILE=/etc/postgresql/14/main/pg_hba.conf
+          fi
+          `)
+          for (const n of webApiNodes) {
+            if (n !== node) {
+              cmdArray.push(`[ -z "$PGHBAILE" ] || sudo echo "host    all             all             ${n.pubIp}/32       md5" >> $PGHBAILE`)
+            }
+          }
+        }
+      }
+      cmdArray.push(`sudo systemctl restart ${sysctlName}`)
       break
     case 'elastic':
       cmdArray.push(`sudo apt-get -y install apt-transport-https ca-certificates
@@ -137,7 +155,7 @@ expect eof`)
       break
     case 'redis':
       cmdArray.push(`sudo apt-get -y install ${sysctlName}`)
-      cmdArray.push('sudo sed -i \'s#bind 127.0.0.1#bind 0.0.0.0#g\' /etc/redis/redis.conf')
+      cmdArray.push('sudo sed -i \'s#^bind 127.0.0.1#bind 0.0.0.0#g\' /etc/redis/redis.conf')
       cmdArray.push(`sudo systemctl start ${sysctlName}`)
       break
     case 'npm':
