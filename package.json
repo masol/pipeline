@@ -34,7 +34,7 @@
     "ssh2-promise": "^1.0.3",
     "ssh2-sftp-client": "^9.0.4",
     "uglify-js": "^3.17.4",
-    "unique-filename": "^2.0.1"
+    "unique-filename": "^3.0.0"
   },
   "devDependencies": {
     "eslint": "^8.0.1",
