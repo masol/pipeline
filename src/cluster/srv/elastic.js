@@ -47,7 +47,7 @@ class Elastic extends Base {
             if (s.startsWith(line, 'Please confirm that you would like to continue')) {
               const passwd = s.trim(passwdLines[idx + 1])
               const espassFile = cfgutil.path('config', $env.args.target, 'elastic', 'passwd')
-              await fse.writeFile(espassFile, passwd)
+              await fse.outputFile(espassFile, passwd)
               // console.log('final password=', passwd)
               break
             }

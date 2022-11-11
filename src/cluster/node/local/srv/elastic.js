@@ -11,7 +11,7 @@
 
 const baseUtil = require('../utils')
 const pty = require('node-pty')
-const fs = require('fs').promises
+const fse = require('fs-extra')
 
 async function resetPwd (dockerPath, opts) {
   const chalkAnimation = (await import('chalk-animation')).default
@@ -103,7 +103,7 @@ module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
     const cfgutil = opts.config.util
     const pwd = await resetPwd(dockerPath, opts)
     // console.log(`pwd={{{${pwd}}}}`)
-    await fs.writeFile(cfgutil.path('config', opts.args.target, 'elastic', 'passwd'), pwd)
+    await fse.outputFile(cfgutil.path('config', opts.args.target, 'elastic', 'passwd'), pwd)
 
     const elastiCA = cfgutil.path('config', opts.args.target, 'elastic', 'http_ca.crt')
     const cpResult = shelljs.exec(`"${dockerPath}" cp pv-elastic:/usr/share/elasticsearch/config/certs/http_ca.crt "${elastiCA}"`, { silent: true })

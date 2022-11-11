@@ -30,6 +30,7 @@ class Postgres extends Base {
       // console.log('fromLocal=', fromLocal)
       // console.log('deploy postgresql')
       await that.node.commands.ensurePkg(that.name)
+      await that.node.commands.startSrv(that.name)
       // 开始执行psql来配置用户信息。这与发行版无关。
       // console.log('that.node.$env.args.target=', that.node.$env.args.target)
       const passwd = await Base.ensurePwd(cfgutil.path('config', that.node.$env.args.target, 'postgres', 'app.passwd'))
@@ -42,7 +43,6 @@ grant all privileges on database app to app;
       const cmdStr = `pghome=$(sudo -u postgres -i eval 'echo "$HOME"')
 cp -f $INSTROOT/pgapp.sql $pghome/pgapp.sql
 sudo chown postgres.postgres $pghome/pgapp.sql
-sudo -u postgres psql -f $INSTROOT/pgapp.sql
 sudo su - postgres -c "psql -f $pghome/pgapp.sql"
 rm -f $pghome/pgapp.sql`
       that.node.addStage(that.name, cmdStr)

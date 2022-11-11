@@ -21,7 +21,7 @@ async function ensurePwd (env, pwdFile) {
     const { _ } = env.soa
     passwd = _.cryptoRandom({ length: 16 })
     await fs.ensureFile(pwdFile)
-    await fs.writeFile(pwdFile, passwd)
+    await fs.outputFile(pwdFile, passwd)
   }
   return passwd
 }

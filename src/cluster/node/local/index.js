@@ -9,7 +9,7 @@
 // Created On : 9 Oct 2022 By 李竺唐 of 北京飞鹿软件技术研究院
 // File: base
 
-const fs = require('fs').promises
+const fse = require('fs-extra')
 const yaml = require('js-yaml')
 const dockerUtil = require('./utils')
 const Base = require('../base')
@@ -64,14 +64,14 @@ class Local extends Base {
     const { shelljs } = that.$env.soa
     const util = that.$env.config.util
     const composePathFile = util.path('config', 'dev', ComposeFile)
-    const origCompStr = await fs.readFile(composePathFile, 'utf-8')
+    const origCompStr = await fse.readFile(composePathFile, 'utf-8')
       .catch((e) => { return false })
     // 在genCompose调用时，暴露的postTask数组。会在容器启动后执行，例如elastic,用来重置密码，获取证书等动作。
     const postTask = []
     if (!origCompStr || isForce) {
       const content = await that.#genCompose(origCompStr, postTask)
       // console.log(content)
-      await fs.writeFile(composePathFile, content)
+      await fse.outputFile(composePathFile, content)
     }
     const compsePath = shelljs.which('docker-compose')
     if (!compsePath) {
@@ -91,6 +91,9 @@ class Local extends Base {
         await task()
       }
     }
+    const nodePath = shelljs.which('node')
+    shelljs.exec(`${nodePath} start.js --cmd user`)
+    shelljs.exec(`${nodePath} start.js --cmd migrate`)
   }
 
   /**

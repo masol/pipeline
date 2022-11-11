@@ -9,7 +9,7 @@
 // Created On : 10 Oct 2022 By 李竺唐 of 北京飞鹿软件技术研究院
 // File: postgres
 
-const fs = require('fs').promises
+const fse = require('fs-extra')
 
 module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
   const version = srv.srvDef.version || '14.5.0'
@@ -18,11 +18,11 @@ module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
   const port = srv.srvDef.port || 5432
   const cfgutil = opts.config.util
   const pgpwd = cfgutil.path('config', opts.args.target, 'postgres', 'app.passwd')
-  const passwd = await fs.readFile(pgpwd, 'utf-8').catch(async e => {
+  const passwd = await fse.readFile(pgpwd, 'utf-8').catch(async e => {
     if (e.code === 'ENOENT') {
       const { _ } = opts.soa
       const newpwd = _.cryptoRandom({ length: 16 })
-      await fs.writeFile(pgpwd, newpwd)
+      await fse.outputFile(pgpwd, newpwd)
       return newpwd
     }
     throw e

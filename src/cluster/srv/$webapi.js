@@ -30,6 +30,8 @@ class $Webapi extends Base {
     await sftp.cp2Remote(localWebapi, '/srv/webapi')
 
     const cmdStr = `cd /srv/webapi
+node start.js --cmd user
+node start.js --cmd migrate
 pm2 start -i max
 pm2 startup --service-name webapi
 pm2 save

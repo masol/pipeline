@@ -112,11 +112,11 @@ INSTROOT=$(pwd)\n
       const basePath = path.join(that.#cacheBase, localDirPart)
       const scriptName = `${localDirPart}.sh`
       await fse.emptyDir(basePath)
-      await fse.writeFile(path.join(basePath, scriptName), bashStr)
+      await fse.outputFile(path.join(basePath, scriptName), bashStr)
       const changeSubFunc = (path.sep === '/' ? null : (pathfile) => { return s.replaceAll(pathfile, '/', path.sep) })
       for (const assetName in that.#assets) {
         const fileName = changeSubFunc ? changeSubFunc(assetName) : assetName
-        await fse.writeFile(path.join(basePath, fileName), that.#assets[assetName])
+        await fse.outputFile(path.join(basePath, fileName), that.#assets[assetName])
       }
       console.log('bash file=', path.join(basePath, scriptName))
       const sftp = await that.$term.pvftp()
