@@ -32,7 +32,7 @@ class $Webapi extends Base {
     const cmdStr = `cd /srv/webapi
 node start.js --cmd user
 node start.js --cmd migrate
-pm2 start -i max
+pm2 start start.js -i max
 pm2 startup --service-name webapi
 pm2 save
 systemctl restart webapi.service
