@@ -14,6 +14,7 @@ const Term = require('./term')
 const DepGraph = require('dependency-graph').DepGraph
 const path = require('path')
 const fse = require('fs-extra')
+const rlm = require('recursive-last-modified')
 
 // 记录不同种类的os,可以使用相同的adapter来维护。
 const ostypeMapper = {
@@ -58,6 +59,7 @@ class SSH extends Base {
   #targetDir // 目标目录下的targetDir全路径。
   #assets // 在#bash中引用的额外脚本。会被放入#bash同一目录下，例如被bash调用的expect脚本。
   #depGraph
+  #updated // 记录哪些本地服务已更新，需要重新编译。
   #cacheBase // 类似于cluster cacheBase,不过增加了节点名称目录。
   constructor (name, nodeDef, cluster) {
     super(name, nodeDef, cluster)
@@ -66,7 +68,12 @@ class SSH extends Base {
     // 目前的stage: mirror
     this.#resetBash()
     this.commands = new Commands(this)
+    this.#updated = {}
     this.#cacheBase = path.join(cluster.cacheBase, name)
+  }
+
+  get updated () {
+    return this.#updated
   }
 
   #resetBash () {
@@ -77,6 +84,49 @@ class SSH extends Base {
 
   get instRoot () {
     return this.#targetDir
+  }
+
+  // 将需要本地编译的服务加入result中。返回true表示有本地编译任务，否则返回false.
+  // 本地编译任务是以$开头的服务。
+  async getCompSrvs (result) {
+    const that = this
+    const { s } = that.$env.soa
+    let ret = false
+    for (const srvName in that._srvs) {
+      // console.log('srvName=', srvName)
+      if (s.startsWith(srvName, '$')) {
+        switch (srvName) {
+          case '$webapi':
+          // 检查服务器的编译信息
+            {
+              that.$term = that.$term || await Term.create(that.$env, that)
+              const lastDate = s.trim((await that.$term.exec('cat /srv/webapi/version.txt').catch(e => '')))
+              // console.log('lastDate=', lastDate)
+              if (lastDate) { //
+                const serverDate = that.$env.soa.moment(lastDate)
+                const localDate = that.$env.soa.moment(rlm(['./src', 'start.js', 'app.js']))
+                // console.log('localDate=', localDate)
+                if (localDate.isAfter(serverDate)) {
+                  // 本地文件在服务器之后。
+                  that.#updated[srvName] = true
+                  result[srvName] = true
+                  ret = true
+                }
+              } else {
+                that.#updated[srvName] = true
+                result[srvName] = true
+                ret = true
+              }
+              // console.log('lastDate=', lastDate)
+            }
+            break
+          default:
+            throw new Error('未支持的服务检查:' + srvName)
+        }
+      }
+    }
+
+    return ret
   }
 
   async #genBash () {
@@ -132,7 +182,7 @@ INSTROOT=$(pwd)\n
             action: 'reqExit'
           }],
           opts: {
-            debug: true, // 如果debug打开，会在console中打印处理的每行及匹配情况。
+            debug: !!that.$env.args.verbose, // 如果debug打开，会在console中打印处理的每行及匹配情况。
             autoExit: false // 自动在cmdline后追加'\nexit'以退出shell，设置为false,需要自行退出。
           }
         })
@@ -222,7 +272,7 @@ INSTROOT=$(pwd)\n
   // clusterTask修改为cluster的成员，自行修改。
   async deployEnv () {
     const that = this
-    that.$term = that.$term || await Term.create(that.$envs, that)
+    that.$term = that.$term || await Term.create(that.$env, that)
     const { s } = that.$env.soa
     const reqMirror = that.$env.args.mirror
 
@@ -244,8 +294,8 @@ INSTROOT=$(pwd)\n
       if (s.startsWith(srvName, '$')) {
         continue
       }
-      console.log('srvName=', srvName)
-      console.log('srv.ok=', srv)
+      // console.log('srvName=', srvName)
+      // console.log('srv.ok=', srv)
       // 只有服务未就绪，或者开启了force模式时才执行。
       if (!srv.ok || bForce) {
         await srv.deploy().catch(e => {
@@ -258,7 +308,7 @@ INSTROOT=$(pwd)\n
 
   async deployApp () {
     const that = this
-    that.$term = that.$term || await Term.create(that.$envs, that)
+    that.$term = that.$term || await Term.create(that.$env, that)
     const { s } = that.$env.soa
     const bForce = that.$env.args.force
 

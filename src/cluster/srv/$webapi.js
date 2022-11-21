@@ -21,15 +21,19 @@ class $Webapi extends Base {
     if (!that.isSingle()) {
       throw new Error('集群模式$Webapi部署，尚未实现。')
     }
-    await that.node.commands.port('open', [80, 443])
-    // // 开始部署单机版$webapi.
-    await that.$ensureNodejs()
-    const sftp = await that.node.$term.pvftp()
-    const localWebapi = path.join(that.node.$cluster.cacheBase, 'target', 'webapi')
-    console.log('localWebapi=', localWebapi)
-    await sftp.cp2Remote(localWebapi, '/srv/webapi')
+    const cp2Remote = async () => {
+      const sftp = await that.node.$term.pvftp()
+      const localWebapi = path.join(that.node.$cluster.cacheBase, 'target', 'webapi')
+      console.log('localWebapi=', localWebapi)
+      await sftp.cp2Remote(localWebapi, '/srv/webapi')
+    }
+    if (needDeploy) { // 检查上一次编译之后，是否有任意文件被更新。
+      await that.node.commands.port('open', [80, 443])
+      // // 开始部署单机版$webapi.
+      await that.$ensureNodejs()
+      await cp2Remote()
 
-    const cmdStr = `cd /srv/webapi
+      const cmdStr = `cd /srv/webapi
 node start.js --cmd user
 node start.js --cmd migrate
 pm2 start start.js -i max
@@ -37,7 +41,13 @@ pm2 startup --service-name webapi
 pm2 save
 systemctl restart webapi.service
 `
-    that.node.addStage('webapi', cmdStr, 'nodejs')
+      that.node.addStage('webapi', cmdStr, 'nodejs')
+    } else if (that.node.updated.$webapi) {
+      console.log('webapi已更新，重新发布。')
+      await cp2Remote()
+      const cmdStr = 'pm2 reload start'
+      that.node.addStage('webapi', cmdStr, 'nodejs')
+    }
     // const term = that.node.$term
     // // const { s } = that.node.$env.soa
 

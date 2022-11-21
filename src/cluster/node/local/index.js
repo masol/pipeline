@@ -19,7 +19,13 @@ const ComposeFile = 'docker-compose.yml'
  * 驱动本地获取信息及使用Docker维护服务的Driver。
  */
 class Local extends Base {
-/**
+  // 将需要本地编译的服务加入result中。返回true表示有本地编译任务，否则返回false.
+  // 本地编译任务是以$开头的服务。
+  async getCompSrvs (result) {
+    return false
+  }
+
+  /**
  * local的私有成员，用于构建Docker Compose文件。
  * @param {*} origCompStr
  * @param {*} postTask

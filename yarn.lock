@@ -1789,6 +1789,11 @@ readable-stream@~2.3.6:
     string_decoder "~1.1.1"
     util-deprecate "~1.0.1"
 
+recursive-last-modified@^1.0.6:
+  version "1.0.6"
+  resolved "https://registry.npmmirror.com/recursive-last-modified/-/recursive-last-modified-1.0.6.tgz#099f1587f8647d51dad1d2b209c4f4f73ca3810f"
+  integrity sha512-5zIxmcHbPSxGFKEbTIPVntDYx0u7+nuiw1eEzbqrc6XIZlseYM3pVLb6nCoAWVtsIworbiBRJXPGotv8Eh+e2Q==
+
 redent@^4.0.0:
   version "4.0.0"
   resolved "https://registry.npmmirror.com/redent/-/redent-4.0.0.tgz#0c0ba7caabb24257ab3bb7a4fd95dd1d5c5681f9"

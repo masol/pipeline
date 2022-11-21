@@ -15,7 +15,7 @@ class Redis extends Base {
     const that = this
     const cfgutil = that.node.$env.config.util
     const needDeploy = await super.deploy()
-    console.log(that.name, 'needDeploy=', needDeploy)
+    // console.log(that.name, 'needDeploy=', needDeploy)
     if (!that.isSingle()) {
       throw new Error('集群模式Redis部署，尚未实现。')
     }

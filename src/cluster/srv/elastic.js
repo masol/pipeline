@@ -15,7 +15,7 @@ class Elastic extends Base {
   async deploy () {
     const that = this
     const needDeploy = await super.deploy()
-    console.log(that.name, 'needDeploy=', needDeploy)
+    // console.log(that.name, 'needDeploy=', needDeploy)
 
     if (!that.isSingle()) {
       throw new Error('集群模式Elastic部署，尚未实现。')

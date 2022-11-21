@@ -39,21 +39,6 @@ class Base {
     return this.#nodeDef.host
   }
 
-  // 将需要本地编译的服务加入result中。返回true表示有本地编译任务，否则返回false.
-  // 本地编译任务是以$开头的服务。
-  getCompSrvs (result) {
-    const that = this
-    const { _, s } = that.$env.soa
-    let ret = false
-    _.forEach(that._srvs, (srv, srvName) => {
-      if (s.startsWith(srvName, '$')) {
-        result[srvName] = true
-        ret = true
-      }
-    })
-    return ret
-  }
-
   srvCount () {
     const { _ } = this.$env.soa
     return _.keys(this._srvs)

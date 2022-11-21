@@ -282,8 +282,8 @@ class Cluster {
   // $webwx,$webtv,$webmb需要在cluster.#target中检查。
   async #compile (taskMaps) {
     const that = this
-    const { shelljs, s } = this.envs.soa
-    const apiPwd = String(shelljs.pwd())
+    const { s } = this.envs.soa
+    // const apiPwd = String(shelljs.pwd())
     const doCompiler = async (pkgName, cfg) => {
       let compiler
       try {
@@ -307,7 +307,7 @@ class Cluster {
     }
 
     if (taskMaps.$webapi) {
-      console.log('shelljs.pwd()=', apiPwd)
+      // console.log('shelljs.pwd()=', apiPwd)
       // run local server compile task
     }
     if (taskMaps.$webass) {
@@ -359,8 +359,9 @@ class Cluster {
     const sshTasks = []
     for (const nodeName in that.#nodes) {
       const node = that.#nodes[nodeName]
+      await node.getCompSrvs(needComp)
       // 本地环境不执行本地编译!!
-      if (!isDev && node.getCompSrvs(needComp)) {
+      if (!isDev) {
         // 本节点需要本地编译，加入到compNodes.
         compNodes.push(node)
       }
@@ -399,7 +400,7 @@ class Cluster {
       await fse.writeJson(localPath, that.#localcfg)
     }
 
-    // console.log('needComp=', needComp)
+    console.log('needComp=', needComp)
     if (!_.isEmpty(needComp)) {
       if (animation) {
         animation.replace('正在编译本地资源,请稍侯...')

@@ -27,6 +27,9 @@ async function compile (cluster, cfg) {
       .on('end', resolve)
   })
 
+  // const localDate = cluster.envs.soa.moment(rlm(['src', 'start.js', 'app.js']))
+  await fse.outputFile(path.join(destPath, 'version.txt'), cluster.envs.soa.moment().format())
+
   await cpTask
   const minify = composer(uglifyjs, console)
   return new Promise((resolve, reject) => {
