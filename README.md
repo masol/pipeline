@@ -18,7 +18,7 @@
 # 定义文件
 
 ## 计算节点
-&emsp;&emsp;计算节点由集群目录`pvdev/nodes/{CLUSTER-NAME}`中的`manual.json`及`auto.json`文件合并定义。两者格式相同，auto是自动版本，而definition为手动版本,其格式如下：
+&emsp;&emsp;计算节点由集群目录`pvdev/nodes/{CLUSTER-NAME}`中的`manual.json`及`auto.json`文件合并定义。两者格式相同，auto是自动版本，而manual为手动版本,其格式如下：
 
 ```javascript
 { //以美元符号开头的名称为系统名称。
@@ -26,7 +26,7 @@
     driver: 'vagrant',// vagrant,aliyun,tencent,aws
     prefix: '', //名称前缀，后续索引节点可以用prefix${i}的格式，i为0基索引。不带i为全部自动节点。
   },
-  $oss: { //如果未指定$oss节点，也没有明确指定false。则会在节点上安装cloudserver。并添加$oss伪计算节点。
+  $oss: { //如果未指定$oss节点，则采用同一个服务器提供服务。保存在/srv/webapi/assets目录下。
   },
   name: { //名称允许服务索引节点。可用配置参考[ssh2-promise](https://github.com/sanketbajoria/ssh2-promise)的配置。不能以`_`开头。
     type: 'string', //local,ssh: 指示如何连接到此节点。

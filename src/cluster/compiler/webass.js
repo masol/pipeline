@@ -24,6 +24,8 @@ async function compile (cluster, cfg) {
   await shelljs.cd(uiPrjPath)
   await shelljs.exec('npm run build')
   await shelljs.cd(pwd)
+  await fse.outputFile(path.join(uiPrjPath, 'build', 'version.txt'), cluster.envs.soa.moment().format())
+
   // await fse.emptyDir(destPath)
 }
 

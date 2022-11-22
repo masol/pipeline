@@ -13,6 +13,8 @@ const SrvFactory = require('./srv')
 const NodeFactory = require('./node')
 const fse = require('fs-extra')
 const logger = require('fancy-log')
+const path = require('path')
+const rlm = require('recursive-last-modified')
 
 function taskWrapper (taskHandler) {
   return async function (fullName, srv, taskName) {
@@ -30,6 +32,8 @@ class Cluster {
   #target // 额外的编译目标。$webtv/$webmb/$webwx....
   #dirty // 是否发生了自动分配，从而需要写回原始的节点定义。
   #project // pvdev中的project.json的内容。
+  #localTime // 本地项目的时间，值为对象。{$webapi,$webass...}
+  #compiled // 需要编译的项目。$webapi,$webass
   #localcfg // 写入到localcfg中，在deploy结束时，如果不为空，会将配置写入到config/target/local.json(yml)中。
   constructor (envs) {
     this.envs = envs
@@ -52,6 +56,44 @@ class Cluster {
     this.#cacheBase = envs.config.util.path('.pipeline')
     const project = fse.readJsonSync(envs.config.util.path('pvdev', 'project.json'), { throws: false })
     this.#project = project || {}
+    this.#localTime = {}
+    this.#compiled = {}
+  }
+
+  // 是否需要静态部署ass.
+  bAssInApi () {
+    return this.#compiled.$webass && this.#localTime.$webass && !this.ossDef
+  }
+
+  get $uiPrjPath () {
+    const that = this
+    const { shelljs } = that.envs.soa
+    const pwd = String(shelljs.pwd())
+    const uiPrjPath = that.project.$webass || path.join(path.dirname(pwd), path.basename(pwd) + 'ui')
+    return uiPrjPath
+  }
+
+  async localTime (item) {
+    const that = this
+    if (!that.#localTime[item]) {
+      const { moment } = that.envs.soa
+      switch (item) {
+        case '$webapi':
+          that.#localTime[item] = moment(rlm(['./src', 'start.js', 'app.js']))
+          break
+        case '$webass':
+          {
+            const uiPrjPath = that.$uiPrjPath
+            // console.log('urPrjPath=', uiPrjPath)
+            if (await fse.pathExists(uiPrjPath)) {
+              // UI目录未指定，忽略UI项目的编译及部署。
+              that.#localTime[item] = moment(rlm(path.join(uiPrjPath, 'src')))
+            }
+          }
+          break
+      }
+    }
+    return that.#localTime[item]
   }
 
   get project () {
@@ -109,7 +151,7 @@ class Cluster {
     const defSrvs = _.clone(SrvFactory.Base.DefSrvs)
     if (!ossNode) {
       // console.log('未发现ossNode,添加cloudserver服务依赖。')
-      defSrvs.push(SrvFactory.Base.CloudServer)
+      // defSrvs.push(SrvFactory.Base.CloudServer)
     }
 
     // 检查服务定义是否已经设置，如未设置，设置为default.
@@ -149,6 +191,7 @@ class Cluster {
     if (!that.#ossDef) {
       const node = _.find(that.#nodes, (n) => n.srv(SrvFactory.Base.CloudServer))
       if (node) {
+        console.log('found cloundServer:TODO: IMPLEMENT IT!!', node)
         that.#ossDef = {
           type: 'local'
         }
@@ -320,18 +363,42 @@ class Cluster {
   }
 
   // 根据cluster的定义，$ossDef,$tvdef等信息来获取本地编译任务。
-  #getCompileTask (taskMaps) {
+  async #getCompileTask (taskMaps) {
     const that = this
-    /** 检查oss设置。 */
-    if (taskMaps.$webapi || that.#ossDef.type !== 'none') { // 需要部署oss.
-      taskMaps.$webass = true
+    const { _, s, moment } = this.envs.soa
+    /** webass: 检查oss设置。 */
+    console.log('that.#ossDef=', that.#ossDef)
+    if (that.#ossDef) { // 使用oss部署。
+      //
+      console.log('使用oss来部署静态资源, implement it!!!!!')
+      console.log('ossdef=', that.#ossDef)
+    } else { // 使用静态部署。
+      const localDate = await that.localTime('$webass')
+      console.log('webass localDate=', localDate)
+      if (localDate) {
+        const nodes = that.nodesBySrv('$webapi')
+        // console.log('nodes=', nodes)
+        for (let i = 0; i < nodes.length; i++) {
+          const n = nodes[i]
+          await n.ensureTerm()
+          const serverDateStr = s.trim((await n.$term.exec('cat /srv/webapi/root/version.txt').catch(e => '')))
+          if (!serverDateStr) { // 需要编译webass.
+            taskMaps.$webass = true
+            break
+          } else {
+            const serverDate = moment(serverDateStr)
+            if (localDate.isAfter(serverDate)) {
+              taskMaps.$webass = true
+              break
+            }
+          }
+          // console.log('lastDate=', lastDate)
+        }
+      } else {
+        logger('UI项目不存在，忽略webass编译与部署。')
+      }
     }
 
-    if (that.#ossDef) {
-      taskMaps.$webass = true
-    }
-
-    const { _ } = that.envs.soa
     // 添加手机版、pc版、tv版等信息。
     _.assign(taskMaps, that.#target)
   }
@@ -374,7 +441,7 @@ class Cluster {
 
     if (!isDev) {
       // 本地环境下不执行编译任务。
-      that.#getCompileTask(needComp)
+      await that.#getCompileTask(needComp)
     }
 
     let animation
@@ -397,7 +464,12 @@ class Cluster {
 
     if (!_.isEmpty(that.#localcfg)) {
       // 将配置写入到target/localcfg中
-      await fse.writeJson(localPath, that.#localcfg)
+      await fse.outputJson(localPath, that.#localcfg)
+    }
+    // 如果default.json存在，则拷贝到对应目录下。
+    const defCfg = cfgutil.path('pvdev', 'cluster', that.envs.args.target, 'default.json')
+    if (await fse.pathExists(defCfg)) {
+      await fse.copy(defCfg, cfgutil.path('config', that.envs.args.target, 'default.json'))
     }
 
     console.log('needComp=', needComp)
@@ -407,6 +479,8 @@ class Cluster {
       }
       await that.#compile(needComp)
     }
+
+    that.#compiled = needComp
 
     await $.mapLimit(that.tasks, limit, (taskInfo) => {
       if (taskInfo.beforeApp && _.isFunction(taskInfo.handler)) {

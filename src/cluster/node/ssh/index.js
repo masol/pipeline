@@ -14,7 +14,6 @@ const Term = require('./term')
 const DepGraph = require('dependency-graph').DepGraph
 const path = require('path')
 const fse = require('fs-extra')
-const rlm = require('recursive-last-modified')
 
 // 记录不同种类的os,可以使用相同的adapter来维护。
 const ostypeMapper = {
@@ -99,13 +98,13 @@ class SSH extends Base {
           case '$webapi':
           // 检查服务器的编译信息
             {
-              that.$term = that.$term || await Term.create(that.$env, that)
+              await that.ensureTerm()
               const lastDate = s.trim((await that.$term.exec('cat /srv/webapi/version.txt').catch(e => '')))
               // console.log('lastDate=', lastDate)
               if (lastDate) { //
                 const serverDate = that.$env.soa.moment(lastDate)
-                const localDate = that.$env.soa.moment(rlm(['./src', 'start.js', 'app.js']))
-                // console.log('localDate=', localDate)
+                const localDate = await that.$cluster.localTime('$webapi')
+                console.log('localDate=', localDate)
                 if (localDate.isAfter(serverDate)) {
                   // 本地文件在服务器之后。
                   that.#updated[srvName] = true
@@ -257,6 +256,11 @@ INSTROOT=$(pwd)\n
     await requireOS(that.$info.os.type).requireIssue(that).startSrv(srv)
   }
 
+  async ensureTerm () {
+    const that = this
+    that.$term = that.$term || await Term.create(that.$env, that)
+  }
+
   async finish () {
     if (this.$term) {
       const term = this.$term
@@ -272,7 +276,7 @@ INSTROOT=$(pwd)\n
   // clusterTask修改为cluster的成员，自行修改。
   async deployEnv () {
     const that = this
-    that.$term = that.$term || await Term.create(that.$env, that)
+    await that.ensureTerm()
     const { s } = that.$env.soa
     const reqMirror = that.$env.args.mirror
 
@@ -308,7 +312,7 @@ INSTROOT=$(pwd)\n
 
   async deployApp () {
     const that = this
-    that.$term = that.$term || await Term.create(that.$env, that)
+    await that.ensureTerm()
     const { s } = that.$env.soa
     const bForce = that.$env.args.force
 
@@ -331,8 +335,6 @@ INSTROOT=$(pwd)\n
 
   async fetchSrv () {
     const that = this
-    const term = that.$term || await Term.create(this.opts, that)
-    that.$term = term
     for (const srvName in that._srvs) {
       const srv = that._srvs[srvName]
       if (!srv.status) {
@@ -349,13 +351,12 @@ INSTROOT=$(pwd)\n
       const { s } = that.$env.soa
       that.$info = {}
       const $info = that.$info
-      const term = that.$term || await Term.create(that.$env, that)
-      that.$term = term
+      await that.ensureTerm()
 
       // console.log('term=', term)
       // const shell = await term.shell()
       $info.os = {}
-      $info.os.type = s.trim(await term.exec('uname -s'))
+      $info.os.type = s.trim(await that.$term.exec('uname -s'))
       // 如果对应type的fetcher不存在，直接抛出异常。
       await requireOS($info.os.type).fetch(that)
     }

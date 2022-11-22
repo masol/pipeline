@@ -27,12 +27,20 @@ class $Webapi extends Base {
       console.log('localWebapi=', localWebapi)
       await sftp.cp2Remote(localWebapi, '/srv/webapi')
     }
+    const cpAss2Rem = async () => {
+      const sftp = await that.node.$term.pvftp()
+      const localWebapi = path.join(that.node.$cluster.$uiPrjPath, 'build')
+      console.log('localWebapi=', localWebapi)
+      await sftp.cp2Remote(localWebapi, '/srv/webapi/root')
+    }
     if (needDeploy) { // 检查上一次编译之后，是否有任意文件被更新。
       await that.node.commands.port('open', [80, 443])
       // // 开始部署单机版$webapi.
       await that.$ensureNodejs()
       await cp2Remote()
-
+      if (that.node.$cluster.bAssInApi()) {
+        await cpAss2Rem()
+      }
       const cmdStr = `cd /srv/webapi
 node start.js --cmd user
 node start.js --cmd migrate
@@ -42,9 +50,12 @@ pm2 save
 systemctl restart webapi.service
 `
       that.node.addStage('webapi', cmdStr, 'nodejs')
-    } else if (that.node.updated.$webapi) {
-      console.log('webapi已更新，重新发布。')
+    } else if (that.node.updated.$webapi || that.node.$cluster.bAssInApi()) {
+      console.log('webapi或webass已更新，重新发布。')
       await cp2Remote()
+      if (that.node.$cluster.bAssInApi()) {
+        await cpAss2Rem()
+      }
       const cmdStr = 'pm2 reload start'
       that.node.addStage('webapi', cmdStr, 'nodejs')
     }
