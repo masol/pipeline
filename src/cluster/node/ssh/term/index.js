@@ -14,15 +14,10 @@ const path = require('path')
 const SSH2Promise = require('ssh2-promise')
 const sftpUtil = require('./sftp')
 
-const $VaultPrefix = '$vault:'
-
 async function getConf (envOpts, definition) {
   const cfgutil = envOpts.config.util
-  const { s } = envOpts.soa
   const secretPath = cfgutil.path('pvdev', 'cluster', envOpts.args.target, 'secret')
-  const secretMap = JSON.parse(await fs.readFile(path.join(secretPath, 'secret.json'), 'utf8').catch(e => {
-    return '{}'
-  }))
+
   if (!definition.host) {
     throw new Error('ssh节点必须指定host。')
   }
@@ -31,9 +26,8 @@ async function getConf (envOpts, definition) {
     port: definition.port || 22,
     username: definition.username || 'root'
   }
-  const passwd = (s.startsWith(definition.password, $VaultPrefix)
-    ? secretMap[s.strRight(definition.password, ':')]
-    : definition.password)
+  const passwd = envOpts.getVault(definition.password)
+
   if (!passwd && !definition.key) {
     throw new Error('ssh节点必须指定密码或证书中的一个')
   }

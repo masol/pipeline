@@ -15,6 +15,7 @@ const fse = require('fs-extra')
 const logger = require('fancy-log')
 const path = require('path')
 const rlm = require('recursive-last-modified')
+const OSS = require('./oss')
 
 function taskWrapper (taskHandler) {
   return async function (fullName, srv, taskName) {
@@ -26,6 +27,7 @@ class Cluster {
   #nodes
   #srvDef
   #ossDef
+  #oss // 保存oss对象。
   #cacheBase // 缓冲根目录。api子项目下的.pipeline
   #dns // dns配置服务。如果为空，不设置dns.
   #feched // 是否已经获取了系统信息。
@@ -62,7 +64,24 @@ class Cluster {
 
   // 是否需要静态部署ass.
   bAssInApi () {
-    return this.#compiled.$webass && this.#localTime.$webass && !this.ossDef
+    return this.#compiled.$webass && this.#localTime.$webass && !this.#ossDef
+  }
+
+  get oss () {
+    if (!this.#oss) {
+      if (!this.#ossDef) {
+        return null
+      }
+      const { _ } = this.envs.soa
+      const ossDef = {
+        conf: _.cloneDeep(this.#ossDef)
+      }
+      ossDef.type = ossDef.conf.type
+      ossDef.AWS = this.envs.AWS
+      ossDef.conf.secretAccessKey = this.envs.getVault(ossDef.conf.secretAccessKey)
+      delete ossDef.conf.type
+      this.#oss = new OSS(ossDef)
+    }
   }
 
   get $uiPrjPath () {
@@ -371,6 +390,7 @@ class Cluster {
     if (that.#ossDef) { // 使用oss部署。
       //
       console.log('使用oss来部署静态资源, implement it!!!!!')
+      console.log(that.oss)
       console.log('ossdef=', that.#ossDef)
     } else { // 使用静态部署。
       const localDate = await that.localTime('$webass')
