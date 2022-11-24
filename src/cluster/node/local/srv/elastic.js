@@ -12,6 +12,7 @@
 const baseUtil = require('../utils')
 const pty = require('node-pty')
 const fse = require('fs-extra')
+const logger = require('fancy-log')
 
 async function resetPwd (dockerPath, opts) {
   const chalkAnimation = (await import('chalk-animation')).default
@@ -45,7 +46,9 @@ async function resetPwd (dockerPath, opts) {
       if (nextIsPwd) {
         pwd = opts.soa.s.trim(str, [' ', '\r', '\n'])
       }
-      // console.log('recieved data:', data.toString('utf8'))
+      if (opts.args.verbose) {
+        logger('命令行输出:', data.toString('utf8'))
+      }
       if (str.indexOf('Please confirm that you would like to continue') >= 0) {
         nextIsPwd = true
         dockerProc.write('y\n')
@@ -96,19 +99,31 @@ module.exports.deploy = async (opts, compose, srvName, srv, postTask) => {
     driver: 'local'
   }
   compose.networks.prodvest = compose.networks.prodvest || {}
-  postTask.push(async () => {
-    // const { shelljs } = opts.soa
-    const { shelljs } = opts.soa
-    const dockerPath = baseUtil.getDockerBin(shelljs)
-    const cfgutil = opts.config.util
-    const pwd = await resetPwd(dockerPath, opts)
-    // console.log(`pwd={{{${pwd}}}}`)
-    await fse.outputFile(cfgutil.path('config', opts.args.target, 'elastic', 'passwd'), pwd)
+}
 
-    const elastiCA = cfgutil.path('config', opts.args.target, 'elastic', 'http_ca.crt')
+module.exports.postTask = async (opts) => {
+  // console.log('post task for elastic')
+  const { shelljs } = opts.soa
+  const dockerPath = baseUtil.getDockerBin(shelljs)
+  const cfgutil = opts.config.util
+  const elasticPasswd = cfgutil.path('config', opts.args.target, 'elastic', 'passwd')
+  if (!shelljs.test('-e', elasticPasswd)) {
+    // console.log('dockerPath=', dockerPath)
+    const pwd = await resetPwd(dockerPath, opts).catch(e => {
+      logger.error('elastic重置密码发生错误,请使用--verbose重新执行以了解命令返回详情', e)
+      return ''
+    })
+    // console.log(`pwd={{{${pwd}}}}`)
+    if (pwd) {
+      await fse.outputFile(elasticPasswd, pwd)
+    }
+  }
+
+  const elastiCA = cfgutil.path('config', opts.args.target, 'elastic', 'http_ca.crt')
+  if (!shelljs.test('-e', elastiCA)) {
     const cpResult = shelljs.exec(`"${dockerPath}" cp pv-elastic:/usr/share/elasticsearch/config/certs/http_ca.crt "${elastiCA}"`, { silent: true })
     if (cpResult.code !== 0) {
       throw new Error('无法获取elasticsearch的证书')
     }
-  })
+  }
 }

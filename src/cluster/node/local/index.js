@@ -67,7 +67,7 @@ class Local extends Base {
   async deployEnv () {
     const that = this
     const isForce = that.$env.args.force
-    const { shelljs } = that.$env.soa
+    const { _, shelljs } = that.$env.soa
     const util = that.$env.config.util
     const composePathFile = util.path('config', 'dev', ComposeFile)
     const origCompStr = await fse.readFile(composePathFile, 'utf-8')
@@ -97,19 +97,26 @@ class Local extends Base {
         await task()
       }
     }
+
+    for (const srvName in that._srvs) {
+      let postTask
+      try {
+        postTask = require(`./srv/${srvName}`).postTask
+        // 只有服务未就绪，或者原始compStr无值时才执行。
+      } catch (e) {
+        throw new Error(`请求了未支持的本地服务:${srvName}`)
+      }
+      if (_.isFunction(postTask)) {
+        await postTask(that.$env)
+      }
+    }
+
+    if (!shelljs.test('-e', util.path('config', 'active'))) {
+      shelljs.ln('-sf', util.path('config', 'dev'), util.path('config', 'active'))
+    }
     const nodePath = shelljs.which('node')
     shelljs.exec(`${nodePath} start.js --cmd user`)
     shelljs.exec(`${nodePath} start.js --cmd migrate`)
-  }
-
-  /**
-   * 部署一个节点需要编译的服务。$webXXX类服务。本地忽略之。
-   * @param {Node} node
-   */
-  async deployComp (node, name) {
-    if (node.type !== 'local') {
-      return await super.deployComp(node, name)
-    }
   }
 
   /**
