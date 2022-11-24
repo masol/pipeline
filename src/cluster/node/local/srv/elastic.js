@@ -29,7 +29,9 @@ async function resetPwd (dockerPath, opts) {
         'elastic',
         '-f',
         '-s',
-        '-a'
+        '-a',
+        '--url',
+        'https://127.0.0.1:9200'
       ],
       {
         name: 'prodvest faked pty',
