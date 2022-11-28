@@ -104,7 +104,7 @@ class SSH extends Base {
               if (lastDate) { //
                 const serverDate = that.$env.soa.moment(lastDate)
                 const localDate = await that.$cluster.localTime('$webapi')
-                console.log('localDate=', localDate)
+                // console.log('localDate=', localDate)
                 if (localDate.isAfter(serverDate)) {
                   // 本地文件在服务器之后。
                   that.#updated[srvName] = true

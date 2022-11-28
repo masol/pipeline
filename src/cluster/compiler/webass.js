@@ -16,7 +16,7 @@ async function compile (cluster, cfg) {
   // 获取ui子项目目录。
   const { shelljs } = cluster.envs.soa
   const pwd = String(shelljs.pwd())
-  const uiPrjPath = cluster.project.$webass || path.join(path.dirname(pwd), path.basename(pwd) + 'ui')
+  const uiPrjPath = cluster.$uiPrjPath
   if (!(await fse.pathExists(uiPrjPath))) {
     throw new Error(`编译$webass时，子项目${uiPrjPath}不存在！`)
   }

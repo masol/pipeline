@@ -15,7 +15,7 @@ const fse = require('fs-extra')
 const logger = require('fancy-log')
 const path = require('path')
 const rlm = require('recursive-last-modified')
-const OSS = require('./oss')
+const CreateOSS = require('./oss')
 
 function taskWrapper (taskHandler) {
   return async function (fullName, srv, taskName) {
@@ -76,12 +76,18 @@ class Cluster {
       const ossDef = {
         conf: _.cloneDeep(this.#ossDef)
       }
-      ossDef.type = ossDef.conf.type
-      ossDef.AWS = this.envs.AWS
+      if (ossDef.conf.type) {
+        ossDef.type = ossDef.conf.type
+        delete ossDef.conf.type
+      }
+      if (ossDef.conf.bucket) {
+        ossDef.bucket = ossDef.conf.bucket
+        delete ossDef.conf.bucket
+      }
       ossDef.conf.secretAccessKey = this.envs.getVault(ossDef.conf.secretAccessKey)
-      delete ossDef.conf.type
-      this.#oss = new OSS(ossDef)
+      this.#oss = CreateOSS(ossDef, this)
     }
+    return this.#oss
   }
 
   get $uiPrjPath () {
@@ -341,6 +347,22 @@ class Cluster {
     // console.log('deployer.nodes=', deployer.nodes.local)
   }
 
+  /// 对经过本地编译的服务执行部署动作。
+  async #deployCompiled () {
+    const that = this
+    for (const $srvName in that.#compiled) {
+      switch ($srvName) {
+        case '$webass':
+          if (!that.bAssInApi()) {
+            await that.oss.deploy(path.join(that.$uiPrjPath, 'build'))
+          }
+          break
+        default:
+          throw new Error(`尚未实现本地服务${$srvName}的部署`)
+      }
+    }
+  }
+
   // $webwx,$webtv,$webmb需要在cluster.#target中检查。
   async #compile (taskMaps) {
     const that = this
@@ -386,15 +408,23 @@ class Cluster {
     const that = this
     const { _, s, moment } = this.envs.soa
     /** webass: 检查oss设置。 */
-    console.log('that.#ossDef=', that.#ossDef)
+    // console.log('that.#ossDef=', that.#ossDef)
+    const localDate = await that.localTime('$webass')
+
     if (that.#ossDef) { // 使用oss部署。
-      //
-      console.log('使用oss来部署静态资源, implement it!!!!!')
-      console.log(that.oss)
-      console.log('ossdef=', that.#ossDef)
+      // console.log('使用oss来部署静态资源, implement it!!!!!')
+      const serverDateStr = await that.oss.version()
+      // console.log('serverDateStr=', serverDateStr)
+      if (serverDateStr) {
+        const serverDate = moment(serverDateStr)
+        if (localDate.isAfter(serverDate)) {
+          taskMaps.$webass = true
+        }
+      } else {
+        taskMaps.$webass = true
+      }
     } else { // 使用静态部署。
-      const localDate = await that.localTime('$webass')
-      console.log('webass localDate=', localDate)
+      // console.log('webass localDate=', localDate)
       if (localDate) {
         const nodes = that.nodesBySrv('$webapi')
         // console.log('nodes=', nodes)
@@ -522,6 +552,8 @@ class Cluster {
         return taskInfo.handler('afterApp')
       }
     })
+
+    await that.#deployCompiled()
 
     // 清空clusterTasks
     that.tasks = []
