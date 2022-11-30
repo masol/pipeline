@@ -13,6 +13,8 @@ const CosSDK = require('cos-nodejs-sdk-v5')
 const Base = require('./base')
 const path = require('path')
 const fse = require('fs-extra')
+const crc64 = require('crc64-ecma182')
+const logger = require('fancy-log')
 
 class Cos extends Base {
   #inst
@@ -34,38 +36,94 @@ class Cos extends Base {
     const { $, s } = that.$cluster.envs.soa
     await that.gatherFiles(srcDir, files)
     const limit = parseInt(that.$cluster.envs.args.concurrency) || 5
+    const bVerbose = that.$cluster.envs.args.verbose
     await $.mapLimit(files, limit, async (filePath) => {
-      const length = (await fse.stat(filePath)).size
+      const stat = await fse.stat(filePath)
+      const length = stat.size
       const key = path.relative(srcDir, filePath)
       // console.log('length=', length)
       // console.log('fileName=', filePath)
       // console.log('key=', key)
       return new Promise((resolve, reject) => {
-        const opts = {
-          Bucket: that.$def.bucket,
-          Region: that.$def.conf.region,
-          Key: key,
-          StorageClass: 'STANDARD',
-          Body: fse.createReadStream(filePath), // 上传文件对象
-          ContentLength: length
-        }
-        if (s.startsWith(key, '_app/immutable')) {
-          opts.CacheControl = 'public,max-age=2147483647,immutable'
-        } else {
-          // @TODO: 这里使用命令行参数可调整默认资源的缓冲时间。
-          opts.CacheControl = 'public,max-age=300' // 5 min
-        }
-        that.#inst.putObject(opts, (err, data) => {
-          if (err) {
-            reject(err)
-          } else {
-            // console.log(data)
-            resolve(data)
+        const putObject = () => {
+          const opts = {
+            Bucket: that.$def.bucket,
+            Region: that.$def.conf.region,
+            Key: key,
+            StorageClass: 'STANDARD',
+            Body: fse.createReadStream(filePath), // 上传文件对象
+            ContentLength: length
           }
-        })
+          if (s.startsWith(key, '_app/immutable')) {
+            opts.CacheControl = 'public,max-age=2147483647,immutable'
+          } else {
+            // @TODO: 这里使用命令行参数可调整默认资源的缓冲时间。
+            opts.CacheControl = 'public,max-age=300' // 5 min
+          }
+          that.#inst.putObject(opts, (err, data) => {
+            if (err) {
+              reject(err)
+            } else {
+              // console.log(data)
+              resolve(data)
+            }
+          })
+        }
+        if (length > 100 * 1024) { // 大于100K的文件，检查是否需要更新。
+          crc64.crc64File(filePath, (err, crcval) => {
+            if (err) {
+              putObject()
+            } else {
+              // console.log('crcval=', crcval)
+              that.#inst.headObject({
+                Bucket: that.$def.bucket,
+                Region: that.$def.conf.region,
+                Key: key
+              }, (err, data) => {
+                if (err) {
+                  console.log('headObject err=', err)
+                  putObject()
+                } else {
+                  const serverCrc = data.headers['x-cos-hash-crc64ecma']
+                  if (serverCrc !== crcval) {
+                    if (bVerbose) {
+                      logger(`100K大文件"${key}"的CRC发生变化，重新上传。`)
+                    }
+                    putObject()
+                  } else {
+                    if (bVerbose) {
+                      logger(`100K大文件"${key}"未变化，忽略上传。`)
+                    }
+                    resolve(true)
+                  }
+                }
+              })
+            }
+          })
+        } else {
+          putObject()
+        }
       })
     })
   }
+
+  // version () {
+  //   const that = this
+  //   return new Promise((resolve, reject) => {
+  //     const opts = {
+  //       Bucket: that.$def.bucket,
+  //       Region: that.$def.conf.region
+  //     }
+  //     that.#inst.getBucketTagging(opts, (err, data) => {
+  //       if (err) {
+  //         reject(err)
+  //       } else {
+  //         console.log(err || data)
+  //         resolve('')
+  //       }
+  //     })
+  //   })
+  // }
 
   version () {
     const that = this

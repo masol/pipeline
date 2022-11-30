@@ -308,6 +308,10 @@ chown webapi.webapi -R /srv/webapi
     })
     return ret
   }
+
+  // 用于本地服务更新配置文件(default.json)。标准服务的配置更新在deployEnv中一并执行。
+  async updCfg () {
+  }
 }
 
 module.exports = Base

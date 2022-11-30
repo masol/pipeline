@@ -36,7 +36,7 @@ class Cluster {
   #project // pvdev中的project.json的内容。
   #localTime // 本地项目的时间，值为对象。{$webapi,$webass...}
   #compiled // 需要编译的项目。$webapi,$webass
-  #localcfg // 写入到localcfg中，在deploy结束时，如果不为空，会将配置写入到config/target/local.json(yml)中。
+  #defcfg // 写入到default cfg中，在deploy结束时，如果不为空，会将配置写入到config/target/default.json(yml)中。手动版的local.json会覆盖这里的项。
   constructor (envs) {
     this.envs = envs
     /** 这里加入的任务，在deploy时被清空，然后随着部署，调用其中的成员。其成员的结构如下:
@@ -47,7 +47,7 @@ class Cluster {
       handler: ('stageName')=>{}
     } */
     this.tasks = []
-    this.#localcfg = {}
+    this.#defcfg = {}
     this.#nodes = {}
     this.#srvDef = {}
     this.#ossDef = null
@@ -65,6 +65,32 @@ class Cluster {
   // 是否需要静态部署ass.
   bAssInApi () {
     return this.#compiled.$webass && this.#localTime.$webass && !this.#ossDef
+  }
+
+  get dnsdef () {
+    return this.#dns || {}
+  }
+
+  apiEndpoint () {
+    const { _ } = this.envs.soa
+    let https = false
+    const that = this
+    if (that.bAssInApi()) {
+      return ''
+    }
+    // console.log('that.$dns=', that.#dns)
+    if (that.#dns && _.isObject(that.#dns.$webapi)) {
+      if (that.#dns.$webapi.key && that.#dns.$webapi.cert) {
+        https = true
+      }
+      if (that.#dns.$webapi.domain) {
+        return `http${https ? 's' : ''}://${that.#dns.$webapi.domain}/`
+      }
+    }
+    const nodes = that.nodesBySrv('$webapi')
+    if (nodes.length > 0) {
+      return `http${https ? 's' : ''}://${nodes[0].pubIp}/`
+    }
   }
 
   get oss () {
@@ -131,8 +157,9 @@ class Cluster {
 
   /// 返回localCfg下某个服务的配置项。
   srvCfg (srvName) {
-    this.#localcfg[srvName] = this.#localcfg[srvName] || {}
-    return this.#localcfg[srvName]
+    // console.log('this.#defcfg=', this.#defcfg)
+    this.#defcfg[srvName] = this.#defcfg[srvName] || {}
+    return this.#defcfg[srvName]
   }
 
   static #onceTaskCache = {}
@@ -357,6 +384,8 @@ class Cluster {
             await that.oss.deploy(path.join(that.$uiPrjPath, 'build'))
           }
           break
+        case '$webapi':
+          break
         default:
           throw new Error(`尚未实现本地服务${$srvName}的部署`)
       }
@@ -389,18 +418,6 @@ class Cluster {
       const pkgName = s.strRight(compName, '$')
       await doCompiler(pkgName, cfg)
     }
-
-    if (taskMaps.$webapi) {
-      // console.log('shelljs.pwd()=', apiPwd)
-      // run local server compile task
-    }
-    if (taskMaps.$webass) {
-      // run local assets compile task
-    }
-  }
-
-  // 按照#target.$oss,#target.$webmb以及$dns等配置来部署额外服务。
-  async #deployTarget () {
   }
 
   // 根据cluster的定义，$ossDef,$tvdef等信息来获取本地编译任务。
@@ -459,7 +476,11 @@ class Cluster {
     const cfgutil = that.envs.config.util
     const isDev = that.envs.args.target === 'dev'
 
-    const localPath = cfgutil.path('config', that.envs.args.target, 'local.json')
+    const defcfgPath = cfgutil.path('config', that.envs.args.target, 'default.json')
+    that.#defcfg = await fse.readJSON(defcfgPath).catch(e => {})
+    if (!that.#defcfg) {
+      that.#defcfg = {}
+    }
 
     // 首先查找是否需要本地编译webapi。$webass,$webtv等其它服务，通过检查配置项来查看，不属于节点。
     // 以$开头的为需要本地编译的服务。
@@ -512,14 +533,14 @@ class Cluster {
       }
     })
 
-    if (!_.isEmpty(that.#localcfg)) {
+    if (!_.isEmpty(that.#defcfg)) {
       // 将配置写入到target/localcfg中
-      await fse.outputJson(localPath, that.#localcfg)
+      await fse.outputJson(defcfgPath, that.#defcfg)
     }
-    // 如果default.json存在，则拷贝到对应目录下。
-    const defCfg = cfgutil.path('pvdev', 'cluster', that.envs.args.target, 'default.json')
+    // 如果local.json存在，则拷贝到对应目录下。
+    const defCfg = cfgutil.path('pvdev', 'cluster', that.envs.args.target, 'local.json')
     if (await fse.pathExists(defCfg)) {
-      await fse.copy(defCfg, cfgutil.path('config', that.envs.args.target, 'default.json'))
+      await fse.copy(defCfg, cfgutil.path('config', that.envs.args.target, 'local.json'))
     }
 
     console.log('needComp=', needComp)
@@ -544,8 +565,6 @@ class Cluster {
     await $.mapLimit(compNodes, limit, (node) => {
       return node.deployApp()
     })
-    // @TODO: 检查target的内容，并根据target来部署。
-    // that.deployTarget()
 
     await $.mapLimit(that.tasks, limit, (taskInfo) => {
       if (taskInfo.afterApp && _.isFunction(taskInfo.handler)) {
@@ -553,6 +572,7 @@ class Cluster {
       }
     })
 
+    // @TODO: 检查target的内容，并根据target来部署。
     await that.#deployCompiled()
 
     // 清空clusterTasks

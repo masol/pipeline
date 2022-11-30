@@ -22,6 +22,7 @@ async function compile (cluster, cfg) {
   }
   // console.log('uiPrjPath=', uiPrjPath)
   await shelljs.cd(uiPrjPath)
+  shelljs.env.API_ENDPOINT = cluster.apiEndpoint()
   await shelljs.exec('npm run build')
   await shelljs.cd(pwd)
   await fse.outputFile(path.join(uiPrjPath, 'build', 'version.txt'), cluster.envs.soa.moment().format())

@@ -21,6 +21,7 @@
     "chalk-template": "^0.4.0",
     "cli-table3": "^0.6.3",
     "cos-nodejs-sdk-v5": "^2.11.16",
+    "crc64-ecma182": "^1.0.0",
     "dependency-graph": "^0.11.0",
     "extract-zip": "^2.0.1",
     "fancy-log": "^2.0.0",

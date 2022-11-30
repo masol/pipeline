@@ -296,6 +296,7 @@ INSTROOT=$(pwd)\n
     for (const srvName in that._srvs) {
       const srv = that._srvs[srvName]
       if (s.startsWith(srvName, '$')) {
+        await srv.updCfg()
         continue
       }
       // console.log('srvName=', srvName)

@@ -26,7 +26,23 @@
     driver: 'vagrant',// vagrant,aliyun,tencent,aws
     prefix: '', //名称前缀，后续索引节点可以用prefix${i}的格式，i为0基索引。不带i为全部自动节点。
   },
-  $oss: { //如果未指定$oss节点，则采用同一个服务器提供服务。保存在/srv/webapi/assets目录下。
+  $cdn: { //用于刷新和控制cdn，暂未支持。
+  },
+  $dns: { //刷新和控制dns,当前只提供信息，需要手动配置。
+    $webass: [''], //$webass的域名,字符串或数组。
+    $webapi: {
+      domain: '', //$webapi的域名。
+      key: '', //.key密钥文件。可选，如果给定，则部署$webapi时启用https.
+      cert: '', //crt文件。可选，如果给定，则部署$webapi时启用https.
+    }
+  },
+  $oss: { //如果未指定$oss节点，则采用同一个服务器提供服务。保存在/srv/webapi/assets目录下。否则asset与api分离。
+    type: 'cos', //aws,aos (cos为腾讯oss,aos为阿里oss)
+    bucket:  //buecket名称。
+    accessKeyId: 
+    secretAccessKey: 
+    region:
+    endpoint: //cos,aws,aos可选。其它aws兼容api的才需要指定。
   },
   name: { //名称允许服务索引节点。可用配置参考[ssh2-promise](https://github.com/sanketbajoria/ssh2-promise)的配置。不能以`_`开头。
     type: 'string', //local,ssh: 指示如何连接到此节点。
