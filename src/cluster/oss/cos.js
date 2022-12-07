@@ -81,7 +81,7 @@ class Cos extends Base {
                 Key: key
               }, (err, data) => {
                 if (err) {
-                  console.log('headObject err=', err)
+                  // console.log('headObject err=', err)
                   putObject()
                 } else {
                   const serverCrc = data.headers['x-cos-hash-crc64ecma']
