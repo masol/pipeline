@@ -138,7 +138,7 @@ class Cluster {
             // console.log('urPrjPath=', uiPrjPath)
             if (await fse.pathExists(uiPrjPath)) {
               // UI目录未指定，忽略UI项目的编译及部署。
-              that.#localTime[item] = moment(rlm(path.join(uiPrjPath, 'src')))
+              that.#localTime[item] = moment(rlm([path.join(uiPrjPath, 'src'), path.join(uiPrjPath, 'static')]))
             }
           }
           break
