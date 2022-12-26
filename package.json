@@ -1,6 +1,6 @@
 {
   "name": "@masol/pipeline",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "gulp pipeline for prodvest scaffolding.",
   "main": "index.js",
   "scripts": {
