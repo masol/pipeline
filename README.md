@@ -8,6 +8,7 @@
   - [服务定义](#服务定义)
   - [安全性说明](#安全性说明)
 - [测试说明](#测试说明)
+- [TODOS](#todos)
 
 
 # 使用说明
@@ -103,3 +104,11 @@
 &emsp;&emsp;可以自行搜索[vagrant box](https://app.vagrantup.com/boxes/search)来替换镜像。修改现有test来构建新test。
 
 &emsp;&emsp;将对应子测试下的nodes目录拷贝到主项目的nodes下`XXX`子目录下。主项目下执行`gulp status|deploy`等pipeline指令来测试。
+
+
+# TODOS
+1. 增加service配置项,以定制服务.例如postgresq增加插件.可以通过service来定义.
+2. 增加service配置项,允许不做安装,只更新配置.例如利用云数据库.
+3. 增加配置,不自动分配服务,可以用于安装日常服务.例如安装gitlab.
+4. 在拥有$container时,webapi dockfile打包.并自动推送.
+5. 增加插件机制,允许增加自定义服务安装.
