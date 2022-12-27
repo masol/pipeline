@@ -16,6 +16,7 @@ const logger = require('fancy-log')
 const path = require('path')
 const rlm = require('recursive-last-modified')
 const CreateOSS = require('./oss')
+const createCDN = require('./cdn')
 
 function taskWrapper (taskHandler) {
   return async function (fullName, srv, taskName) {
@@ -28,14 +29,15 @@ class Cluster {
   #srvDef
   #ossDef
   #oss // 保存oss对象。
+  #cdn // cdn配置服务,在webass更新后,刷新path.
+  #cdnDef // cdn的配置项.
+  #dnsDef // dns配置值。如果为空，不设置dns.
   #cacheBase // 缓冲根目录。api子项目下的.pipeline
-  #dns // dns配置服务。如果为空，不设置dns.
   #feched // 是否已经获取了系统信息。
   #target // 额外的编译目标。$webtv/$webmb/$webwx....
-  #dirty // 是否发生了自动分配，从而需要写回原始的节点定义。
   #project // pvdev中的project.json的内容。
   #localTime // 本地项目的时间，值为对象。{$webapi,$webass...}
-  #compiled // 需要编译的项目。$webapi,$webass
+  #compiled // 需要编译的项目。值为对象 {$webapi,$webass...}
   #defcfg // 写入到default cfg中，在deploy结束时，如果不为空，会将配置写入到config/target/default.json(yml)中。手动版的local.json会覆盖这里的项。
   constructor (envs) {
     this.envs = envs
@@ -51,10 +53,10 @@ class Cluster {
     this.#nodes = {}
     this.#srvDef = {}
     this.#ossDef = null
-    this.#dirty = false
     this.#feched = false
     this.#target = {}
-    this.#dns = {}
+    this.#dnsDef = {}
+    this.#cdnDef = {}
     this.#cacheBase = envs.config.util.path('.pipeline')
     const project = fse.readJsonSync(envs.config.util.path('pvdev', 'project.json'), { throws: false })
     this.#project = project || {}
@@ -68,7 +70,20 @@ class Cluster {
   }
 
   get dnsdef () {
-    return this.#dns || {}
+    return this.#dnsDef || {}
+  }
+
+  #assEntries () {
+    const { _ } = this.envs.soa
+    const that = this
+    const ret = []
+    if (that.#dnsDef && _.isArray(that.#dnsDef.$webass)) {
+      for (const domain of that.#dnsDef.$webass) {
+        ret.push(`http://${domain}/`)
+        ret.push(`https://${domain}/`)
+      }
+    }
+    return ret
   }
 
   apiEndpoint () {
@@ -79,12 +94,12 @@ class Cluster {
       return ''
     }
     // console.log('that.$dns=', that.#dns)
-    if (that.#dns && _.isObject(that.#dns.$webapi)) {
-      if (that.#dns.$webapi.key && that.#dns.$webapi.cert) {
+    if (that.#dnsDef && _.isObject(that.#dnsDef.$webapi)) {
+      if (that.#dnsDef.$webapi.key && that.#dnsDef.$webapi.cert) {
         https = true
       }
-      if (that.#dns.$webapi.domain) {
-        return `http${https ? 's' : ''}://${that.#dns.$webapi.domain}/`
+      if (that.#dnsDef.$webapi.domain) {
+        return `http${https ? 's' : ''}://${that.#dnsDef.$webapi.domain}/`
       }
     }
     const nodes = that.nodesBySrv('$webapi')
@@ -93,18 +108,41 @@ class Cluster {
     }
   }
 
-  get oss () {
-    if (!this.#oss) {
-      if (!this.#ossDef) {
+  get cdn () {
+    if (!this.#cdn) {
+      const { _ } = this.envs.soa
+      if (_.isEmpty(this.#cdnDef)) {
         return null
       }
+      const cdnDef = {
+        conf: _.cloneDeep(this.#cdnDef)
+      }
+      if (cdnDef.conf.type) {
+        cdnDef.type = cdnDef.conf.type
+        delete cdnDef.conf.type
+      }
+      cdnDef.conf.secretAccessKey = this.envs.getVault(cdnDef.conf.secretAccessKey)
+      this.#cdn = createCDN(cdnDef, this)
+    }
+    return this.#cdn
+  }
+
+  get oss () {
+    if (!this.#oss) {
       const { _ } = this.envs.soa
+      if (_.isEmpty(this.#ossDef)) {
+        return null
+      }
       const ossDef = {
         conf: _.cloneDeep(this.#ossDef)
       }
       if (ossDef.conf.type) {
         ossDef.type = ossDef.conf.type
         delete ossDef.conf.type
+      }
+      if (ossDef.conf.threshold) {
+        ossDef.threshold = ossDef.conf.threshold
+        delete ossDef.conf.threshold
       }
       if (ossDef.conf.bucket) {
         ossDef.bucket = ossDef.conf.bucket
@@ -260,7 +298,10 @@ class Cluster {
         this.#ossDef = keyValue
         break
       case '$dns':
-        this.#dns = keyValue
+        this.#dnsDef = keyValue
+        break
+      case '$cdn':
+        this.#cdnDef = keyValue
         break
       case '$webwx':
       case '$webmb':
@@ -381,7 +422,19 @@ class Cluster {
       switch ($srvName) {
         case '$webass':
           if (!that.bAssInApi()) {
-            await that.oss.deploy(path.join(that.$uiPrjPath, 'build'))
+            const oss = that.oss
+            if (oss) {
+              await oss.deploy(path.join(that.$uiPrjPath, 'build'))
+              const cdn = that.cdn
+              const pathes = that.#assEntries()
+              if (cdn) {
+                await cdn.purgePath(pathes)
+              } else {
+                logger.warn('未设置CDN,无法清理路径,请手动清理如下路径:%s', pathes.join(' '))
+              }
+            } else {
+              logger.error('无法获取OSS,无法同步$webass,请手动同步或检查配置.')
+            }
           }
           break
         case '$webapi':
@@ -477,7 +530,7 @@ class Cluster {
     const isDev = that.envs.args.target === 'dev'
 
     const defcfgPath = cfgutil.path('config', that.envs.args.target, 'default.json')
-    that.#defcfg = await fse.readJSON(defcfgPath).catch(e => {})
+    that.#defcfg = await fse.readJSON(defcfgPath).catch(e => { })
     if (!that.#defcfg) {
       that.#defcfg = {}
     }

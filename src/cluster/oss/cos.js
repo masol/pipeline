@@ -18,6 +18,7 @@ const logger = require('fancy-log')
 
 class Cos extends Base {
   #inst
+  #threshold
   constructor (def, cluster) {
     super(def, cluster)
     // 可用参数参考 https://cloud.tencent.com/document/product/436/8629
@@ -27,6 +28,12 @@ class Cos extends Base {
       ForcePathStyle: def.conf.ForcePathStyle || false,
       UseAccelerate: def.conf.UseAccelerate || true
     }
+    const { _ } = this.$cluster.envs.soa
+    this.#threshold = parseInt(def.threshold)
+    if (!_.isInteger(this.#threshold) || this.#threshold < 0) {
+      this.#threshold = 100 * 1024 // 默认阀值100K.
+    }
+    // console.log('this.#threshold=', this.#threshold)
     this.#inst = new CosSDK(conf)
   }
 
@@ -69,7 +76,7 @@ class Cos extends Base {
             }
           })
         }
-        if (length > 100 * 1024) { // 大于100K的文件，检查是否需要更新。
+        if (length > that.#threshold) { // 大于阀值的文件，检查是否需要更新。
           crc64.crc64File(filePath, (err, crcval) => {
             if (err) {
               putObject()
@@ -87,12 +94,12 @@ class Cos extends Base {
                   const serverCrc = data.headers['x-cos-hash-crc64ecma']
                   if (serverCrc !== crcval) {
                     if (bVerbose) {
-                      logger(`100K大文件"${key}"的CRC发生变化，重新上传。`)
+                      logger(`大文件"${key}"的CRC发生变化，重新上传。`)
                     }
                     putObject()
                   } else {
                     if (bVerbose) {
-                      logger(`100K大文件"${key}"未变化，忽略上传。`)
+                      logger(`大文件"${key}"未变化，忽略上传。`)
                     }
                     resolve(true)
                   }

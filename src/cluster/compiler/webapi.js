@@ -21,7 +21,7 @@ async function compile (cluster, cfg) {
   const { src, dest } = cluster.envs.gulpInst
   // 拷贝辅助文件。
   const cpTask = new Promise((resolve, reject) => {
-    src(['package.json', 'LICENSE', `config/${cluster.envs.args.target}/**/*`], { base: './' })
+    src(['package.json', 'LICENSE', 'src/**/*', '!src/**/*.js', `config/${cluster.envs.args.target}/**/*`], { base: './' })
       .pipe(dest(destPath))
       .on('error', reject)
       .on('end', resolve)
