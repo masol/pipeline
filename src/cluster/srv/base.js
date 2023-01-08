@@ -194,9 +194,9 @@ sudo which pm2
 status=$?
 if [ $status -ne 0 ]
 then
-  sudo npm install -g pm2
+  sudo npm install -g @socket.io/pm2
   ${yarnMirror}
-  sudo ln -s ~/.nvm/versions/node/${NodeVersion}/lib/node_modules/pm2/bin/pm2 /bin/
+  sudo ln -s ~/.nvm/versions/node/${NodeVersion}/lib/node_modules/@socket.io/pm2/bin/pm2 /bin/
 fi
 if id "webapi" &>/dev/null
 then
