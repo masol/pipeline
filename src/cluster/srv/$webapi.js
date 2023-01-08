@@ -103,7 +103,7 @@ pm2 reload start`
       // console.log('defapiCfg.domain=', defapiCfg.domain)
     }
 
-    const defSessCfg = that.node.$cluster.srvCfg('session')
+    const defSessCfg = that.node.$cluster.srvCfg('corsess')
     defSessCfg.conf = defSessCfg.conf || {}
     defSessCfg.conf.secret = defSessCfg.conf.secret || _.cryptoRandom({ length: 64 })
   }
