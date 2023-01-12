@@ -44,9 +44,11 @@ class Postgres extends Base {
 REVOKE ALL PRIVILEGES ON DATABASE app FROM app;
 DROP USER IF EXISTS app;
 */
-      const sqlContent = `create database app;
-create user app with encrypted password '${passwd}';
+      const sqlContent = `create user app with encrypted password '${passwd}';
+GRANT ALL ON SCHEMA public TO app;
+create database app;
 grant all privileges on database app to app;
+ALTER DATABASE app OWNER TO app;
 `
       that.node.addAsset('pgapp.sql', sqlContent)
       const cmdStr = `pghome=$(sudo -u postgres -i eval 'echo "$HOME"')
