@@ -87,7 +87,7 @@ function pvftp (term, envOpts) {
 async function procExpect (socket, expect = {}, envOpts, cmdline) {
   const { _, s, $ } = envOpts.soa
   let reqExit = false
-  const opts = expect.opts || { }
+  const opts = expect.opts || {}
   if (_.isUndefined(opts.stripColors)) opts.stripColors = true
   if (_.isUndefined(opts.autoExit)) opts.autoExit = true
   if (_.isUndefined(opts.trim)) opts.trim = true
@@ -222,7 +222,11 @@ async function procExpect (socket, expect = {}, envOpts, cmdline) {
   })
 }
 
-module.exports.create = async (envOpts, node) => {
+// function getConf(node) {
+
+// }
+
+async function create (envOpts, node) {
   const definition = node.$definition
   const hop = definition.hop || []
   let conf = await getConf(envOpts, definition)
@@ -249,3 +253,5 @@ module.exports.create = async (envOpts, node) => {
   }
   return sshInst
 }
+
+module.exports.create = create

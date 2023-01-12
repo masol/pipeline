@@ -24,9 +24,20 @@ function taskWrapper (taskHandler) {
   }
 }
 
+function waitClose (server) {
+  return new Promise((resolve, reject) => {
+    server.on('close', () => {
+      resolve('close')
+    })
+    server.on('error', (err) => {
+      reject(err)
+    })
+  })
+}
+
 class Cluster {
   #nodes
-  #srvDef
+  #srvDef // 服务定义保存．
   #ossDef
   #oss // 保存oss对象。
   #cdn // cdn配置服务,在webass更新后,刷新path.
@@ -413,6 +424,32 @@ class Cluster {
     }
     that.#feched = true
     // console.log('deployer.nodes=', deployer.nodes.local)
+  }
+
+  //
+  async pipe () {
+    const { _ } = this.envs.soa
+    let retTasks = []
+    for (const nodeName in this.#nodes) {
+      const node = this.#nodes[nodeName]
+      retTasks.push(node.pipe())
+    }
+    const tunnels = _.flatten(await Promise.all(retTasks))
+    // console.log('tunnels=', tunnels)
+    retTasks = []
+    for (const tunnel of tunnels) {
+      // console.log('tunnel=', tunnel)
+      if (tunnel && tunnel.server && tunnel.server.on) {
+        retTasks.push(waitClose(tunnel.server))
+      }
+    }
+    // console.log('retTasks=', retTasks)
+    if (retTasks.length > 0) {
+      const chalkAnimation = (await import('chalk-animation')).default
+      const baseStr = '等待隧道关闭中，结束使用后请按Ctrl+C终止隧道．'
+      chalkAnimation.rainbow(baseStr + '等待结束中...')
+      await Promise.all(retTasks)
+    }
   }
 
   /// 对经过本地编译的服务执行部署动作。

@@ -11,6 +11,10 @@
 const Base = require('./base')
 
 class Redis extends Base {
+  async ports () {
+    return [6379]
+  }
+
   async deploy () {
     const that = this
     const cfgutil = that.node.$env.config.util

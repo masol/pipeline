@@ -14,6 +14,7 @@ const Term = require('./term')
 const DepGraph = require('dependency-graph').DepGraph
 const path = require('path')
 const fse = require('fs-extra')
+const logger = require('fancy-log')
 
 // 记录不同种类的os,可以使用相同的adapter来维护。
 const ostypeMapper = {
@@ -267,6 +268,38 @@ INSTROOT=$(pwd)\n
       delete this.$term
       await term.close()
     }
+  }
+
+  async pipe () {
+    const { _ } = this.$env.soa
+    const that = this
+    // console.log('that._srvs=', that._srvs)
+    const portInfo = { }
+    for (const srvName in that._srvs) {
+      const srv = that._srvs[srvName]
+      const ports = await srv.ports()
+      if (ports.length > 0) {
+        portInfo[srvName] = ports
+      }
+    }
+    let tasks = []
+    await that.ensureTerm()
+    _.each(portInfo, (ports, srvName) => {
+      for (const port of ports) {
+        tasks.push(that.$term.addTunnel({
+          remoteAddr: '127.0.0.1',
+          remotePort: port
+        }).then((t) => {
+          // console.log('t=', t)
+          logger.warn('将服务%s:%d映射到本地端口 %s', srvName, port, t.localPort)
+          return t
+        }))
+      }
+    })
+    if (tasks.length > 0) {
+      tasks = await Promise.all(tasks)
+    }
+    return tasks
   }
 
   /// 当前使用结果，stacksalt中的地址大量不可用，支持mirror需要大量改写，而mirror是必须支持的，否则中国区不可用。

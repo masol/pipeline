@@ -14,6 +14,7 @@ const yaml = require('js-yaml')
 const dockerUtil = require('./utils')
 const Base = require('../base')
 const ComposeFile = 'docker-compose.yml'
+const logger = require('fancy-log')
 
 /**
  * 驱动本地获取信息及使用Docker维护服务的Driver。
@@ -23,6 +24,10 @@ class Local extends Base {
   // 本地编译任务是以$开头的服务。
   async getCompSrvs (result) {
     return false
+  }
+
+  pipe () {
+    logger.error('无需建立本地节点的隧道')
   }
 
   /**

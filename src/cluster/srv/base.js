@@ -89,6 +89,10 @@ class Base {
     }
   }
 
+  async ports () {
+    return []
+  }
+
   /// 从一个nodeArray获取ipArray,并过滤本节点。
   static nodeIps (nodes) {
     const ret = []

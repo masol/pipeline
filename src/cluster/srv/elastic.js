@@ -12,6 +12,10 @@ const Base = require('./base')
 const fse = require('fs-extra')
 
 class Elastic extends Base {
+  async ports () {
+    return [9200]
+  }
+
   async deploy () {
     const that = this
     const needDeploy = await super.deploy()
@@ -26,7 +30,7 @@ class Elastic extends Base {
     const fromLocal = (webApiNodes.length === 1 && webApiNodes[0] === that.node)
 
     if (needDeploy) {
-      await that.node.commands.port(fromLocal ? 'close' : 'open', 6379, Base.nodeIps(webApiNodes))
+      await that.node.commands.port(fromLocal ? 'close' : 'open', 9200, Base.nodeIps(webApiNodes))
 
       await that.node.commands.ensurePkg(that.name)
       that.node.commands.startSrv(that.name)

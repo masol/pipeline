@@ -11,6 +11,10 @@
 const Base = require('./base')
 
 class Postgres extends Base {
+  async ports () {
+    return [5432]
+  }
+
   async deploy () {
     const that = this
     const cfgutil = that.node.$env.config.util
@@ -22,10 +26,11 @@ class Postgres extends Base {
       throw new Error('集群模式PG部署，尚未实现。')
     }
 
-    if (needDeploy) {
     // 查找支持全部$webapi服务的节点。需要从$webapi节点访问数据库，据此判定是本地访问还是remote访问。
-      const webApiNodes = that.node.$cluster.nodesBySrv('$webapi')
-      const fromLocal = (webApiNodes.length === 1 && webApiNodes[0] === that.node)
+    const webApiNodes = that.node.$cluster.nodesBySrv('$webapi')
+    const fromLocal = (webApiNodes.length === 1 && webApiNodes[0] === that.node)
+
+    if (needDeploy) {
       await that.node.commands.port(fromLocal ? 'close' : 'open', [5432, 5433], Base.nodeIps(webApiNodes))
       // console.log('fromLocal=', fromLocal)
       // console.log('deploy postgresql')
@@ -35,6 +40,10 @@ class Postgres extends Base {
       // console.log('that.node.$env.args.target=', that.node.$env.args.target)
       const passwd = await Base.ensurePwd(cfgutil.path('config', that.node.$env.args.target, 'postgres', 'app.passwd'))
       // console.log('app passwd=', passwd)
+      /**
+REVOKE ALL PRIVILEGES ON DATABASE app FROM app;
+DROP USER IF EXISTS app;
+*/
       const sqlContent = `create database app;
 create user app with encrypted password '${passwd}';
 grant all privileges on database app to app;
@@ -52,7 +61,9 @@ rm -f $pghome/pgapp.sql`
     const localCfg = that.node.$cluster.srvCfg('knex')
     localCfg.conf = localCfg.conf || {}
     localCfg.conf.connection = localCfg.conf.connection || {}
-    localCfg.conf.connection.host = that.node.pubIp
+    if (!fromLocal) {
+      localCfg.conf.connection.host = that.node.pubIp
+    }
   }
 }
 

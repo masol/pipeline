@@ -46,7 +46,7 @@ class $Webapi extends Base {
         await cpAss2Rem()
       }
       const cmdStr = `cd /srv/webapi
-[[ -f ${targetDir} ]] || ln -s ${srcDir} ${targetDir}      
+[[ -d ${targetDir} ]] || ln -s ${srcDir} ${targetDir}      
 node start.js --cmd user
 node start.js --cmd migrate
 pm2 start start.js -i max

@@ -15,6 +15,7 @@ const Names = {
   status: '状态获取',
   deploy: '部署',
   report: '报告',
+  pipe: '隧道',
   finish: '清理'
 }
 
@@ -56,14 +57,17 @@ function getEntry (opts) {
   task(Names.report, require('./src/tasks/report')(opts))
   task(Names.common, require('./src/tasks/common')(opts))
   task(Names.deploy, require('./src/tasks/deploy')(opts))
+  task(Names.pipe, require('./src/tasks/pipe')(opts))
   task(Names.finish, require('./src/tasks/finish')(opts))
 
   const status = series(Names.common, Names.status, Names.report, Names.finish)
   const deploy = series(Names.common, Names.status, Names.deploy, Names.finish)
+  const pipe = series(Names.common, Names.status, Names.pipe, Names.finish)
   return {
     default: status,
     status,
-    deploy
+    deploy,
+    pipe
   }
 }
 
