@@ -45,11 +45,19 @@ class $Webapi extends Base {
       if (that.node.$cluster.bAssInApi()) {
         await cpAss2Rem()
       }
+      // pm2 start start.js -i max
       const cmdStr = `cd /srv/webapi
 [[ -d ${targetDir} ]] || ln -s ${srcDir} ${targetDir}      
 node start.js --cmd user
 node start.js --cmd migrate
-pm2 start start.js -i max
+pm2 describe pm2-logrotate
+status=$?
+if [ $status -ne 0 ]
+then
+  pm2 install pm2-logrotate
+  pm2 set pm2-logrotate:compress true
+fi
+pm2 start ecosystem.config.js
 pm2 startup --service-name webapi
 pm2 save
 systemctl restart webapi.service
@@ -94,7 +102,7 @@ pm2 reload start`
         // console.log('copy config=', config, secret)
         await fse.copy(path.join(secret, $dnsdef.$webapi.key), path.join(config, 'https.key'))
         await fse.copy(path.join(secret, $dnsdef.$webapi.cert), path.join(config, 'https.crt'))
-        defapiCfg.conf.http2 = defapiCfg.conf.http2 || true
+        defapiCfg.conf.http2 = false // defapiCfg.conf.http2 || true
         defapiCfg.conf.https = defapiCfg.conf.https || { }
       }
     }

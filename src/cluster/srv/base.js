@@ -10,7 +10,7 @@
 // File: base
 const fs = require('fs-extra')
 
-const NodeVersion = 'v18.12.0'
+const NodeVersion = 'v18.12.1'
 
 async function ensurePwd (env, pwdFile) {
   let passwd = await fs.readFile(pwdFile, 'utf8').catch(e => {
@@ -198,9 +198,9 @@ sudo which pm2
 status=$?
 if [ $status -ne 0 ]
 then
-  sudo npm install -g @socket.io/pm2
+  sudo npm install -g pm2
   ${yarnMirror}
-  sudo ln -s ~/.nvm/versions/node/${NodeVersion}/lib/node_modules/@socket.io/pm2/bin/pm2 /bin/
+  sudo ln -s ~/.nvm/versions/node/${NodeVersion}/bin/pm2 /bin/
 fi
 if id "webapi" &>/dev/null
 then
