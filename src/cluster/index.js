@@ -427,12 +427,12 @@ class Cluster {
   }
 
   //
-  async pipe () {
+  async tunnel () {
     const { _ } = this.envs.soa
     let retTasks = []
     for (const nodeName in this.#nodes) {
       const node = this.#nodes[nodeName]
-      retTasks.push(node.pipe())
+      retTasks.push(node.tunnel())
     }
     const tunnels = _.flatten(await Promise.all(retTasks))
     // console.log('tunnels=', tunnels)

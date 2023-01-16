@@ -26,7 +26,7 @@ class Local extends Base {
     return false
   }
 
-  pipe () {
+  tunnel () {
     logger.error('无需建立本地节点的隧道')
   }
 

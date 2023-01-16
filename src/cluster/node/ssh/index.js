@@ -270,7 +270,7 @@ INSTROOT=$(pwd)\n
     }
   }
 
-  async pipe () {
+  async tunnel () {
     const { _ } = this.$env.soa
     const that = this
     // console.log('that._srvs=', that._srvs)
