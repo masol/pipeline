@@ -14,7 +14,7 @@ const pty = require('node-pty')
 const fse = require('fs-extra')
 const logger = require('fancy-log')
 
-async function resetPwd (dockerPath, opts) {
+async function resetPwd(dockerPath, opts) {
   const chalkAnimation = (await import('chalk-animation')).default
   return new Promise((resolve, reject) => {
     const baseStr = '正在重置elasticsearch的登录密码，'
@@ -118,6 +118,8 @@ module.exports.postTask = async (opts) => {
     // console.log(`pwd={{{${pwd}}}}`)
     if (pwd) {
       await fse.outputFile(elasticPasswd, pwd)
+    } else {
+      return
     }
   }
 
