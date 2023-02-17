@@ -568,8 +568,28 @@ class Cluster {
 
     const defcfgPath = cfgutil.path('config', that.envs.args.target, 'default.json')
     that.#defcfg = await fse.readJSON(defcfgPath).catch(e => { })
-    if (!that.#defcfg) {
-      that.#defcfg = {}
+    if (_.isEmpty(that.#defcfg)) {
+      that.#defcfg = {
+        cors: {
+          conf: {
+            origin: '*'
+          }
+        },
+        fastify: {
+          conf: {
+            trustProxy: true,
+            pluginTimeout: 18000000,
+            bodyLimit: 1073741824
+          }
+        },
+        corsess: {
+          conf: {
+            secret: _.cryptoRandom({ length: 64 })
+          }
+        }
+      }
+      // 将默认值保存回去，以防止local下无法启动命令行web维护．
+      await fse.outputJson(defcfgPath, that.#defcfg)
     }
 
     // 首先查找是否需要本地编译webapi。$webass,$webtv等其它服务，通过检查配置项来查看，不属于节点。
