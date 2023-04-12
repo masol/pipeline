@@ -23,7 +23,10 @@ async function compile (cluster, cfg) {
   // console.log('uiPrjPath=', uiPrjPath)
   await shelljs.cd(uiPrjPath)
   shelljs.env.API_ENDPOINT = cluster.apiEndpoint()
-  await shelljs.exec('npm run build')
+  const result = await shelljs.exec('npm run build')
+  if (!result || result.code !== 0) {
+    throw new Error('UI子项目编译错误，无法继续，请查看错误信息并修正．')
+  }
   await shelljs.cd(pwd)
   await fse.outputFile(path.join(uiPrjPath, 'build', 'version.txt'), cluster.envs.soa.moment().format())
 
