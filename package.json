@@ -1,6 +1,6 @@
 {
   "name": "@masol/pipeline",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "description": "gulp pipeline for prodvest scaffolding.",
   "main": "index.js",
   "scripts": {
@@ -37,14 +37,14 @@
     "ssh2-sftp-client": "^9.0.4",
     "tencentcloud-sdk-nodejs": "^4.0.511",
     "uglify-js": "^3.17.4",
-    "unique-filename": "^3.0.0"
+    "unique-filename": "^3.0.0",
+    "recursive-last-modified": "^1.0.6"
   },
   "devDependencies": {
     "eslint": "^8.0.1",
     "eslint-config-standard": "^17.0.0",
     "eslint-plugin-import": "^2.25.2",
     "eslint-plugin-n": "^15.0.0",
-    "eslint-plugin-promise": "^6.0.0",
-    "recursive-last-modified": "^1.0.6"
+    "eslint-plugin-promise": "^6.0.0"
   }
 }
